@@ -16,6 +16,7 @@ import (
 
 	"github.com/1rgs/claude-code-proxy-go/internal/config"
 	"github.com/1rgs/claude-code-proxy-go/internal/converter"
+	"github.com/1rgs/claude-code-proxy-go/internal/logger"
 )
 
 var statusCodePattern = regexp.MustCompile(`(?i)\bstatus(?:\s*code)?[:=]?\s*(\d{3})\b`)
@@ -70,8 +71,8 @@ func NewClient(cfg *config.Config) (*Client, error) {
 }
 
 func buildProviderModel(ctx context.Context, cfg config.ResolvedModel) (model.ChatModel, error) {
-	if cfg.Provider != "openai" {
-		return nil, fmt.Errorf("unsupported provider: %s", cfg.Provider)
+	if cfg.APIType != "openai" {
+		return nil, fmt.Errorf("unsupported api_type: %s", cfg.APIType)
 	}
 
 	openaiCfg := converter.GetOpenAIConfig(cfg.APIKey, cfg.BaseURL, cfg.Name)
@@ -138,6 +139,7 @@ func (c *Client) prepareCall(modelID string, opts *converter.ChatOptions) (model
 			Err:        err,
 		}
 	}
+	logger.Debugf("Model resolved: model_id=%s provider=%s api_type=%s upstream=%s", target.ModelID, target.Provider, target.APIType, target.Name)
 	return chatModel, chatOpts, nil
 }
 
@@ -237,8 +239,10 @@ func retry[T any](ctx context.Context, cfg *config.Config, fn func() (T, error))
 		}
 
 		if attempt >= maxRetries || !isRetryableError(err) {
+			logger.Warnf("Model call failed without retry: attempt=%d max_retries=%d error=%v", attempt+1, maxRetries, err)
 			return zero, err
 		}
+		logger.Warnf("Model call failed, retrying: attempt=%d max_retries=%d error=%v", attempt+1, maxRetries, err)
 
 		delay := initialDelay
 		if attempt > 0 {

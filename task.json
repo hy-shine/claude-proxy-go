@@ -1,0 +1,20 @@
+{
+    "modules": [
+        {
+            "moduleName": "start",
+            "childModules": [
+                "fofaApi"
+            ]
+        },
+        {
+            "moduleName": "fofaApi",
+            "childModules": [
+                "end"
+            ]
+        },
+        {
+            "moduleName": "end",
+            "childModules": []
+        }
+    ]
+}

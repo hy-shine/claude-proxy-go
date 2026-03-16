@@ -5,9 +5,12 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/1rgs/claude-code-proxy-go/internal/converter"
+	"github.com/1rgs/claude-code-proxy-go/internal/logger"
 	"github.com/cloudwego/eino/schema"
 )
 
@@ -19,6 +22,14 @@ type MessageStream interface {
 type SSEHandler struct {
 	model         string
 	stopSequences []string
+}
+
+type toolBlockState struct {
+	contentIndex int
+	id           string
+	name         string
+	pendingArgs  string
+	open         bool
 }
 
 func NewSSEHandler(model string, stopSequences []string) *SSEHandler {
@@ -40,6 +51,34 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 	textBlockOpen := true
 	activeTextIndex := 0
 	nextContentIndex := 1
+	toolBlocks := make(map[int]*toolBlockState)
+
+	closeAllToolBlocks := func() error {
+		positions := make([]int, 0, len(toolBlocks))
+		for pos := range toolBlocks {
+			positions = append(positions, pos)
+		}
+		sort.Ints(positions)
+		for _, pos := range positions {
+			state := toolBlocks[pos]
+			if state == nil {
+				delete(toolBlocks, pos)
+				continue
+			}
+			if state.open {
+				if err := h.sendEvent(writer, flusher, "content_block_stop", map[string]any{
+					"type":  "content_block_stop",
+					"index": state.contentIndex,
+				}); err != nil {
+					return err
+				}
+			} else if strings.TrimSpace(state.pendingArgs) != "" {
+				logger.Warnf("Dropping unresolved tool call delta: model=%s pos=%d id=%s pending_len=%d", h.model, pos, state.id, len(state.pendingArgs))
+			}
+			delete(toolBlocks, pos)
+		}
+		return nil
+	}
 
 	if err := h.sendEvent(writer, flusher, "message_start", map[string]any{
 		"type": "message_start",
@@ -93,6 +132,12 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 		}
 
 		if chunk.Content != "" {
+			if len(toolBlocks) > 0 {
+				if err := closeAllToolBlocks(); err != nil {
+					return err
+				}
+			}
+
 			if !textBlockOpen {
 				activeTextIndex = nextContentIndex
 				nextContentIndex++
@@ -127,39 +172,78 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 				textBlockOpen = false
 			}
 
-			for _, tc := range chunk.ToolCalls {
+			for pos, tc := range chunk.ToolCalls {
+				state, ok := toolBlocks[pos]
+				if !ok {
+					state = &toolBlockState{}
+					toolBlocks[pos] = state
+				}
+				if tc.ID != "" {
+					state.id = tc.ID
+				}
+				if tc.Function.Name != "" {
+					state.name = tc.Function.Name
+				}
+				if tc.Function.Arguments != "" {
+					if state.open {
+						if err := h.sendEvent(writer, flusher, "content_block_delta", map[string]any{
+							"type":  "content_block_delta",
+							"index": state.contentIndex,
+							"delta": map[string]any{
+								"type":         "input_json_delta",
+								"partial_json": tc.Function.Arguments,
+							},
+						}); err != nil {
+							return err
+						}
+					} else {
+						state.pendingArgs += tc.Function.Arguments
+					}
+				}
+
+				if state.open || state.name == "" {
+					continue
+				}
+
+				if state.id == "" {
+					state.id = fmt.Sprintf("tool_%d", nextContentIndex)
+				}
+				state.contentIndex = nextContentIndex
+				nextContentIndex++
 				if err := h.sendEvent(writer, flusher, "content_block_start", map[string]any{
 					"type":  "content_block_start",
-					"index": nextContentIndex,
+					"index": state.contentIndex,
 					"content_block": map[string]any{
 						"type":  "tool_use",
-						"id":    tc.ID,
-						"name":  tc.Function.Name,
+						"id":    state.id,
+						"name":  state.name,
 						"input": map[string]any{},
 					},
 				}); err != nil {
 					return err
 				}
 
-				if err := h.sendEvent(writer, flusher, "content_block_delta", map[string]any{
-					"type":  "content_block_delta",
-					"index": nextContentIndex,
-					"delta": map[string]any{
-						"type":         "input_json_delta",
-						"partial_json": tc.Function.Arguments,
-					},
-				}); err != nil {
-					return err
+				state.open = true
+				if state.pendingArgs != "" {
+					if err := h.sendEvent(writer, flusher, "content_block_delta", map[string]any{
+						"type":  "content_block_delta",
+						"index": state.contentIndex,
+						"delta": map[string]any{
+							"type":         "input_json_delta",
+							"partial_json": state.pendingArgs,
+						},
+					}); err != nil {
+						return err
+					}
+					state.pendingArgs = ""
 				}
-
-				if err := h.sendEvent(writer, flusher, "content_block_stop", map[string]any{
-					"type":  "content_block_stop",
-					"index": nextContentIndex,
-				}); err != nil {
-					return err
-				}
-				nextContentIndex++
 			}
+		}
+	}
+
+	if len(toolBlocks) > 0 {
+		if err := closeAllToolBlocks(); err != nil {
+			return err
 		}
 	}
 

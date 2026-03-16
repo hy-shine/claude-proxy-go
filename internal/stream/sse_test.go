@@ -224,6 +224,88 @@ func TestStreamToClientToolThenText(t *testing.T) {
 	}
 }
 
+func TestStreamToClientAggregatesFragmentedToolCallDeltas(t *testing.T) {
+	h := NewSSEHandler("m1", nil)
+	rec := httptest.NewRecorder()
+
+	stream := &fakeStream{
+		chunks: []*schema.Message{
+			{
+				ToolCalls: []schema.ToolCall{
+					{
+						ID:   "tool_1",
+						Type: "function",
+						Function: schema.FunctionCall{
+							Name:      "glob",
+							Arguments: `{"pattern":"`,
+						},
+					},
+				},
+			},
+			{
+				ToolCalls: []schema.ToolCall{
+					{
+						Type: "function",
+						Function: schema.FunctionCall{
+							Arguments: `**/*`,
+						},
+					},
+				},
+			},
+			{
+				ToolCalls: []schema.ToolCall{
+					{
+						Type: "function",
+						Function: schema.FunctionCall{
+							Arguments: `"}`,
+						},
+					},
+				},
+				ResponseMeta: &schema.ResponseMeta{
+					FinishReason: "tool_calls",
+				},
+			},
+		},
+	}
+
+	if err := h.StreamToClient(stream, rec); err != nil {
+		t.Fatalf("StreamToClient() error = %v", err)
+	}
+
+	events := parseSSEEvents(t, rec.Body.String())
+
+	var (
+		toolStartCount int
+		toolDeltaCount int
+		toolBlockIndex int
+	)
+	for _, ev := range events {
+		if ev.Event == "content_block_start" {
+			cb, _ := ev.Data["content_block"].(map[string]any)
+			if cb["type"] == "tool_use" {
+				toolStartCount++
+				toolBlockIndex = int(ev.Data["index"].(float64))
+				if cb["name"] != "glob" {
+					t.Fatalf("tool name = %v, want glob", cb["name"])
+				}
+			}
+		}
+		if ev.Event == "content_block_delta" {
+			delta, _ := ev.Data["delta"].(map[string]any)
+			if delta["type"] == "input_json_delta" && int(ev.Data["index"].(float64)) == toolBlockIndex {
+				toolDeltaCount++
+			}
+		}
+	}
+
+	if toolStartCount != 1 {
+		t.Fatalf("tool content_block_start count = %d, want 1", toolStartCount)
+	}
+	if toolDeltaCount != 3 {
+		t.Fatalf("tool delta count = %d, want 3", toolDeltaCount)
+	}
+}
+
 func TestStreamToClientMapsLengthToMaxTokens(t *testing.T) {
 	h := NewSSEHandler("m1", nil)
 	rec := httptest.NewRecorder()

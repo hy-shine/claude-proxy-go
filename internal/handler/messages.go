@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"log"
 	"net/http"
 	"time"
 
 	"github.com/1rgs/claude-code-proxy-go/internal/config"
 	"github.com/1rgs/claude-code-proxy-go/internal/converter"
+	"github.com/1rgs/claude-code-proxy-go/internal/logger"
 	"github.com/1rgs/claude-code-proxy-go/internal/stream"
 	"github.com/1rgs/claude-code-proxy-go/internal/types"
 	"github.com/1rgs/claude-code-proxy-go/pkg/eino"
@@ -41,16 +41,18 @@ func (h *Handler) HandleMessages(w http.ResponseWriter, r *http.Request) {
 
 	var req types.MessagesRequest
 	if err := decodeJSONStrict(r.Body, &req); err != nil {
+		logger.Warnf("Request decode failed: path=%s remote=%s error=%v", r.URL.Path, r.RemoteAddr, err)
 		h.sendError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
 		return
 	}
 
 	if err := validateMessagesRequest(&req); err != nil {
+		logger.Warnf("Request validation failed: model=%s path=%s error=%v", req.Model, r.URL.Path, err)
 		h.sendError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	log.Printf("Processing request: model=%s, stream=%v", req.Model, req.Stream != nil && *req.Stream)
+	logger.Infof("Request accepted: model=%s stream=%v remote=%s", req.Model, req.Stream != nil && *req.Stream, r.RemoteAddr)
 
 	if req.Stream != nil && *req.Stream {
 		h.handleStream(w, r, &req)
@@ -63,6 +65,7 @@ func (h *Handler) HandleMessages(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, req *types.MessagesRequest) {
 	messages, opts, err := converter.ToEinoRequest(req)
 	if err != nil {
+		logger.Warnf("Request conversion failed: model=%s stream=false error=%v", req.Model, err)
 		h.sendError(w, http.StatusBadRequest, "Unsupported request: "+err.Error())
 		return
 	}
@@ -80,13 +83,17 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, req *t
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(anthropicResp); err != nil {
+		logger.Errorf("Response encoding failed: model=%s error=%v", req.Model, err)
 		h.sendError(w, http.StatusInternalServerError, "Failed to encode response")
+		return
 	}
+	logger.Debugf("Request completed: model=%s stream=false", req.Model)
 }
 
 func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, req *types.MessagesRequest) {
 	messages, opts, err := converter.ToEinoRequest(req)
 	if err != nil {
+		logger.Warnf("Request conversion failed: model=%s stream=true error=%v", req.Model, err)
 		h.sendError(w, http.StatusBadRequest, "Unsupported request: "+err.Error())
 		return
 	}
@@ -108,16 +115,20 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, req *type
 
 	sseHandler := stream.NewSSEHandler(req.Model, req.StopSequences)
 	if err := sseHandler.StreamToClient(streamResp, w); err != nil {
-		log.Printf("Stream error: %v", err)
+		logger.Warnf("Stream error: model=%s error=%v", req.Model, err)
+		return
 	}
+	logger.Debugf("Request completed: model=%s stream=true", req.Model)
 }
 
 func (h *Handler) sendModelError(w http.ResponseWriter, prefix string, err error) {
 	var clientErr *eino.ClientError
 	if errors.As(err, &clientErr) {
+		logger.Warnf("%s: status=%d message=%s", prefix, clientErr.StatusCode, clientErr.Message)
 		h.sendError(w, clientErr.StatusCode, clientErr.Message)
 		return
 	}
+	logger.Errorf("%s: %v", prefix, err)
 	h.sendError(w, http.StatusInternalServerError, prefix+": "+err.Error())
 }
 
@@ -145,7 +156,6 @@ func (h *Handler) HandleRoot(w http.ResponseWriter, r *http.Request) {
 func decodeJSONStrict(r io.ReadCloser, out any) error {
 	defer r.Close()
 	dec := json.NewDecoder(r)
-	dec.DisallowUnknownFields()
 	if err := dec.Decode(out); err != nil {
 		return err
 	}
@@ -156,6 +166,9 @@ func decodeJSONStrict(r io.ReadCloser, out any) error {
 }
 
 func validateMessagesRequest(req *types.MessagesRequest) error {
+	if req.Type != "" && req.Type != "message" {
+		return errors.New(`type must be "message" when provided`)
+	}
 	if req.Model == "" {
 		return errors.New("model is required and must be a model_id")
 	}

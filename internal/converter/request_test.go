@@ -403,6 +403,73 @@ func TestToEinoRequestConvertsAssistantToolUseBlock(t *testing.T) {
 	}
 }
 
+func TestToEinoRequestInfersAssistantToolUseNameFromID(t *testing.T) {
+	req := &types.MessagesRequest{
+		Model:     "m1",
+		MaxTokens: 32,
+		Messages: []types.Message{
+			{
+				Role: "assistant",
+				Content: []any{
+					map[string]any{
+						"type":  "tool_use",
+						"id":    "tool_1",
+						"input": map[string]any{"q": "golang"},
+					},
+				},
+			},
+		},
+	}
+
+	msgs, _, err := ToEinoRequest(req)
+	if err != nil {
+		t.Fatalf("ToEinoRequest() error = %v", err)
+	}
+	if len(msgs) != 1 || len(msgs[0].ToolCalls) != 1 {
+		t.Fatalf("unexpected tool calls: %#v", msgs)
+	}
+	if got := msgs[0].ToolCalls[0].Function.Name; got != "tool_1" {
+		t.Fatalf("inferred tool name = %q, want %q", got, "tool_1")
+	}
+}
+
+func TestToEinoRequestInfersAssistantToolUseNameFromSingleConfiguredTool(t *testing.T) {
+	req := &types.MessagesRequest{
+		Model:     "m1",
+		MaxTokens: 32,
+		Messages: []types.Message{
+			{
+				Role: "assistant",
+				Content: []any{
+					map[string]any{
+						"type":  "tool_use",
+						"id":    "call_abc",
+						"input": map[string]any{"pattern": "**/*"},
+					},
+				},
+			},
+		},
+		Tools: []types.Tool{
+			{
+				Name:        "glob_search",
+				Description: "search files",
+				InputSchema: json.RawMessage(`{"type":"object","properties":{"pattern":{"type":"string"}}}`),
+			},
+		},
+	}
+
+	msgs, _, err := ToEinoRequest(req)
+	if err != nil {
+		t.Fatalf("ToEinoRequest() error = %v", err)
+	}
+	if len(msgs) != 1 || len(msgs[0].ToolCalls) != 1 {
+		t.Fatalf("unexpected tool calls: %#v", msgs)
+	}
+	if got := msgs[0].ToolCalls[0].Function.Name; got != "glob_search" {
+		t.Fatalf("inferred tool name = %q, want %q", got, "glob_search")
+	}
+}
+
 func contains(values []string, target string) bool {
 	for _, v := range values {
 		if v == target {

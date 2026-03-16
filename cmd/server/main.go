@@ -8,6 +8,7 @@ import (
 
 	"github.com/1rgs/claude-code-proxy-go/internal/config"
 	"github.com/1rgs/claude-code-proxy-go/internal/handler"
+	"github.com/1rgs/claude-code-proxy-go/internal/logger"
 )
 
 var (
@@ -32,13 +33,18 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	log.Printf("Starting server with config from: %s", *configPath)
-	log.Printf("Configured providers: %d", len(cfg.Providers))
+	if err := logger.Init(cfg.Log.Level); err != nil {
+		log.Fatalf("Failed to initialize logger: %v", err)
+	}
+
+	logger.Infof("Starting server with config from: %s", *configPath)
+	logger.Infof("Configured providers: %d, models: %d, log.level=%s", len(cfg.Providers), len(cfg.EnabledModels()), cfg.Log.Level)
 
 	// Create handler
 	h, err := handler.NewHandler(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create handler: %v", err)
+		logger.Errorf("Failed to create handler: %v", err)
+		log.Fatal(err)
 	}
 
 	// Register routes
@@ -47,6 +53,9 @@ func main() {
 
 	// Start server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
-	log.Printf("Server starting on %s", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	logger.Infof("Server starting on %s", addr)
+	if err := http.ListenAndServe(addr, nil); err != nil {
+		logger.Errorf("Server stopped with error: %v", err)
+		log.Fatal(err)
+	}
 }

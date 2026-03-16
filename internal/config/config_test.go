@@ -27,6 +27,9 @@ func TestLoadAppliesDefaultsAndResolvesModel(t *testing.T) {
 	if got := cfg.Providers["openai"].BaseURL; got != "https://api.openai.com/v1" {
 		t.Fatalf("openai base_url default mismatch: %q", got)
 	}
+	if got := cfg.Log.Level; got != "info" {
+		t.Fatalf("log level default mismatch: %q", got)
+	}
 
 	model, err := cfg.ResolveModel("m1")
 	if err != nil {
@@ -34,6 +37,9 @@ func TestLoadAppliesDefaultsAndResolvesModel(t *testing.T) {
 	}
 	if model.Provider != "openai" || model.Name != "gpt-4.1-mini" {
 		t.Fatalf("resolved model mismatch: %#v", model)
+	}
+	if model.APIType != "openai" {
+		t.Fatalf("api_type default mismatch: %#v", model)
 	}
 }
 
@@ -58,22 +64,30 @@ func TestLoadRejectsUnknownFields(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsNonOpenAIProvider(t *testing.T) {
+func TestLoadAllowsArbitraryProviderNameWithDefaultOpenAIType(t *testing.T) {
 	path := writeTempConfig(t, `{
   "providers": {
-    "google": {
-      "api_key": "sk-google",
-      "models": { "m1": { "name": "gemini-2.5-pro" } }
+    "nvidia": {
+      "api_key": "sk-nvidia",
+      "models": { "m1": { "name": "gpt-4.1-mini" } }
     }
   }
 }`)
 
-	_, err := Load(path)
-	if err == nil {
-		t.Fatal("expected error, got nil")
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
 	}
-	if !strings.Contains(err.Error(), "unsupported provider") {
-		t.Fatalf("unexpected error: %v", err)
+
+	model, err := cfg.ResolveModel("m1")
+	if err != nil {
+		t.Fatalf("ResolveModel() error = %v", err)
+	}
+	if model.Provider != "nvidia" || model.APIType != "openai" {
+		t.Fatalf("resolved model mismatch: %#v", model)
+	}
+	if model.BaseURL != "https://api.openai.com/v1" {
+		t.Fatalf("base_url default mismatch: %q", model.BaseURL)
 	}
 }
 
@@ -98,10 +112,11 @@ func TestLoadRejectsWhenAllModelsDisabled(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsUnsupportedProvider(t *testing.T) {
+func TestLoadRejectsUnsupportedAPIType(t *testing.T) {
 	path := writeTempConfig(t, `{
   "providers": {
     "azure_openai": {
+      "api_type": "gemini",
       "api_key": "sk-azure",
       "models": {
         "m1": { "name": "gpt-4.1-mini" }
@@ -114,7 +129,7 @@ func TestLoadRejectsUnsupportedProvider(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "unsupported provider") {
+	if !strings.Contains(err.Error(), "unsupported api_type") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
@@ -142,6 +157,28 @@ func TestLoadAllowsEmptyAPIKey(t *testing.T) {
 	}
 	if model.APIKey != "" {
 		t.Fatalf("expected empty api key, got %q", model.APIKey)
+	}
+}
+
+func TestLoadRejectsUnsupportedLogLevel(t *testing.T) {
+	path := writeTempConfig(t, `{
+  "log": { "level": "trace" },
+  "providers": {
+    "openai": {
+      "api_key": "sk-test",
+      "models": {
+        "m1": { "name": "gpt-4.1-mini" }
+      }
+    }
+  }
+}`)
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "unsupported log.level") {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

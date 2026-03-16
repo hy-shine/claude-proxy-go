@@ -7,6 +7,7 @@ import (
 )
 
 type MessagesRequest struct {
+	Type          string          `json:"type,omitempty"`
 	Model         string          `json:"model" validate:"required"`
 	MaxTokens     int             `json:"max_tokens" validate:"required"`
 	Messages      []Message       `json:"messages" validate:"required"`
@@ -55,6 +56,7 @@ type ContentBlockSource struct {
 }
 
 type Tool struct {
+	Type        string          `json:"type,omitempty"`
 	Name        string          `json:"name" validate:"required"`
 	Description string          `json:"description,omitempty"`
 	InputSchema json.RawMessage `json:"input_schema" validate:"required"`

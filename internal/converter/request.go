@@ -39,7 +39,12 @@ func ToEinoRequest(req *types.MessagesRequest) ([]*schema.Message, *ChatOptions,
 		}
 	}
 
-	messages, err := convertMessages(req.Messages, req.System)
+	fallbackToolName := ""
+	if len(req.Tools) == 1 {
+		fallbackToolName = req.Tools[0].Name
+	}
+
+	messages, err := convertMessages(req.Messages, req.System, fallbackToolName)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -80,7 +85,7 @@ func intPtr(i int) *int {
 	return &i
 }
 
-func convertMessages(msgs []types.Message, system interface{}) ([]*schema.Message, error) {
+func convertMessages(msgs []types.Message, system interface{}, fallbackToolName string) ([]*schema.Message, error) {
 	var result []*schema.Message
 
 	if system != nil {
@@ -94,7 +99,7 @@ func convertMessages(msgs []types.Message, system interface{}) ([]*schema.Messag
 	}
 
 	for _, msg := range msgs {
-		einoMsgs, err := convertMessage(msg)
+		einoMsgs, err := convertMessage(msg, fallbackToolName)
 		if err != nil {
 			return nil, err
 		}
@@ -126,7 +131,7 @@ func extractSystemContent(system interface{}) (string, error) {
 	}
 }
 
-func convertMessage(msg types.Message) ([]*schema.Message, error) {
+func convertMessage(msg types.Message, fallbackToolName string) ([]*schema.Message, error) {
 	role := schema.User
 	switch msg.Role {
 	case "system":
@@ -148,16 +153,16 @@ func convertMessage(msg types.Message) ([]*schema.Message, error) {
 			Content: v,
 		}}, nil
 	case []any:
-		return convertBlockContent(role, v)
+		return convertBlockContent(role, v, fallbackToolName)
 	default:
 		return nil, fmt.Errorf("unsupported content format")
 	}
 }
 
-func convertBlockContent(role schema.RoleType, blocks []any) ([]*schema.Message, error) {
+func convertBlockContent(role schema.RoleType, blocks []any, fallbackToolName string) ([]*schema.Message, error) {
 	switch role {
 	case schema.Assistant:
-		return convertAssistantBlocks(blocks)
+		return convertAssistantBlocks(blocks, fallbackToolName)
 	case schema.User:
 		return convertUserBlocks(blocks)
 	case schema.Tool, schema.System:
@@ -203,7 +208,7 @@ func extractMessageContent(content any) (string, error) {
 	}
 }
 
-func convertAssistantBlocks(blocks []any) ([]*schema.Message, error) {
+func convertAssistantBlocks(blocks []any, fallbackToolName string) ([]*schema.Message, error) {
 	var (
 		sb        strings.Builder
 		toolCalls []schema.ToolCall
@@ -223,6 +228,10 @@ func convertAssistantBlocks(blocks []any) ([]*schema.Message, error) {
 		case "tool_use":
 			toolID, _ := block["id"].(string)
 			name, _ := block["name"].(string)
+			if toolID == "" {
+				return nil, fmt.Errorf("tool_use.id is required")
+			}
+			name = normalizeToolName(name, toolID, fallbackToolName)
 			args := toJSONString(block["input"])
 			toolCalls = append(toolCalls, schema.ToolCall{
 				ID:   toolID,
@@ -392,6 +401,50 @@ func toJSONString(v any) string {
 		return "{}"
 	}
 	return string(data)
+}
+
+func normalizeToolName(name, toolID, fallback string) string {
+	if v := sanitizeToolName(name); v != "" {
+		return v
+	}
+	if v := sanitizeToolName(fallback); v != "" {
+		return v
+	}
+	if v := sanitizeToolName(toolID); v != "" {
+		return v
+	}
+	return "tool"
+}
+
+func sanitizeToolName(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+
+	var b strings.Builder
+	b.Grow(len(raw))
+	lastUnderscore := false
+	for _, r := range raw {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' || r == '-' {
+			b.WriteRune(r)
+			lastUnderscore = false
+			continue
+		}
+		if !lastUnderscore {
+			b.WriteByte('_')
+			lastUnderscore = true
+		}
+	}
+
+	out := strings.Trim(b.String(), "_-")
+	if out == "" {
+		return "tool"
+	}
+	if len(out) > 64 {
+		out = out[:64]
+	}
+	return out
 }
 
 func convertTools(tools []types.Tool) ([]*schema.ToolInfo, error) {

@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
 type Config struct {
 	Server    ServerConfig              `json:"server"`
+	Log       LogConfig                 `json:"log"`
 	Providers map[string]ProviderConfig `json:"providers"`
 	Retry     RetryConfig               `json:"retry"`
 	Timeout   TimeoutConfig             `json:"timeout"`
@@ -23,7 +25,12 @@ type ServerConfig struct {
 	Port int    `json:"port"`
 }
 
+type LogConfig struct {
+	Level string `json:"level"`
+}
+
 type ProviderConfig struct {
+	APIType string                 `json:"api_type,omitempty"`
 	APIKey  string                 `json:"api_key"`
 	BaseURL string                 `json:"base_url"`
 	Models  map[string]ModelConfig `json:"models"`
@@ -49,6 +56,7 @@ type TimeoutConfig struct {
 type ResolvedModel struct {
 	ModelID   string
 	Provider  string
+	APIType   string
 	Name      string
 	APIKey    string
 	BaseURL   string
@@ -85,7 +93,11 @@ func (c *Config) ApplyDefaults() {
 		c.Providers = make(map[string]ProviderConfig)
 	}
 	for providerID, provider := range c.Providers {
-		if providerID == "openai" && provider.BaseURL == "" {
+		provider.APIType = normalizeAPIType(provider.APIType)
+		if provider.APIType == "" {
+			provider.APIType = "openai"
+		}
+		if provider.APIType == "openai" && provider.BaseURL == "" {
 			provider.BaseURL = "https://api.openai.com/v1"
 		}
 		if provider.Models == nil {
@@ -116,6 +128,10 @@ func (c *Config) ApplyDefaults() {
 	if c.Server.Port == 0 {
 		c.Server.Port = 8082
 	}
+
+	if normalizeAPIType(c.Log.Level) == "" {
+		c.Log.Level = "info"
+	}
 }
 
 func (c *Config) Validate() error {
@@ -132,8 +148,13 @@ func (c *Config) Validate() error {
 	if c.Timeout.RequestSeconds <= 0 || c.Timeout.StreamSeconds <= 0 {
 		return errors.New("timeout values must be positive")
 	}
+	switch normalizeAPIType(c.Log.Level) {
+	case "debug", "info", "warn", "warning", "error":
+	default:
+		return fmt.Errorf("unsupported log.level: %s", c.Log.Level)
+	}
 
-	validProviders := map[string]bool{
+	validAPITypes := map[string]bool{
 		"openai": true,
 	}
 
@@ -142,8 +163,16 @@ func (c *Config) Validate() error {
 	enabledCount := 0
 
 	for providerID, provider := range c.Providers {
-		if !validProviders[providerID] {
-			return fmt.Errorf("unsupported provider: %s", providerID)
+		if strings.TrimSpace(providerID) == "" {
+			return errors.New("providers contains empty provider name")
+		}
+
+		apiType := normalizeAPIType(provider.APIType)
+		if apiType == "" {
+			apiType = "openai"
+		}
+		if !validAPITypes[apiType] {
+			return fmt.Errorf("unsupported api_type %q for provider %q", provider.APIType, providerID)
 		}
 		if len(provider.Models) == 0 {
 			return fmt.Errorf("providers.%s.models cannot be empty", providerID)
@@ -167,6 +196,7 @@ func (c *Config) Validate() error {
 				modelIndex[modelID] = ResolvedModel{
 					ModelID:   modelID,
 					Provider:  providerID,
+					APIType:   apiType,
 					Name:      modelCfg.Name,
 					APIKey:    provider.APIKey,
 					BaseURL:   provider.BaseURL,
@@ -208,4 +238,8 @@ func (c *Config) EnabledModels() map[string]ResolvedModel {
 		result[modelID] = info
 	}
 	return result
+}
+
+func normalizeAPIType(v string) string {
+	return strings.ToLower(strings.TrimSpace(v))
 }
