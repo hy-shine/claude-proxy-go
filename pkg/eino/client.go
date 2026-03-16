@@ -1,0 +1,301 @@
+package eino
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net"
+	"net/http"
+	"regexp"
+	"strconv"
+	"time"
+
+	"github.com/cloudwego/eino-ext/components/model/openai"
+	"github.com/cloudwego/eino/components/model"
+	"github.com/cloudwego/eino/schema"
+
+	"github.com/1rgs/claude-code-proxy-go/internal/config"
+	"github.com/1rgs/claude-code-proxy-go/internal/converter"
+)
+
+var statusCodePattern = regexp.MustCompile(`(?i)\bstatus(?:\s*code)?[:=]?\s*(\d{3})\b`)
+
+type StreamReader interface {
+	Recv() (*schema.Message, error)
+	Close()
+}
+
+type ClientError struct {
+	StatusCode int
+	Message    string
+	Err        error
+}
+
+func (e *ClientError) Error() string {
+	if e.Err == nil {
+		return e.Message
+	}
+	return fmt.Sprintf("%s: %v", e.Message, e.Err)
+}
+
+func (e *ClientError) Unwrap() error {
+	return e.Err
+}
+
+type Client struct {
+	cfg    *config.Config
+	models map[string]model.ChatModel
+}
+
+func NewClient(cfg *config.Config) (*Client, error) {
+	client := &Client{
+		cfg:    cfg,
+		models: make(map[string]model.ChatModel),
+	}
+
+	models := cfg.EnabledModels()
+	if len(models) == 0 {
+		return nil, fmt.Errorf("no enabled models configured")
+	}
+
+	for modelID, modelCfg := range models {
+		chatModel, err := buildProviderModel(context.Background(), modelCfg)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize model %s: %w", modelID, err)
+		}
+		client.models[modelID] = chatModel
+	}
+
+	return client, nil
+}
+
+func buildProviderModel(ctx context.Context, cfg config.ResolvedModel) (model.ChatModel, error) {
+	if cfg.Provider != "openai" {
+		return nil, fmt.Errorf("unsupported provider: %s", cfg.Provider)
+	}
+
+	openaiCfg := converter.GetOpenAIConfig(cfg.APIKey, cfg.BaseURL, cfg.Name)
+	return openai.NewChatModel(ctx, openaiCfg)
+}
+
+func (c *Client) Generate(ctx context.Context, modelID string, messages []*schema.Message, opts *converter.ChatOptions) (*schema.Message, error) {
+	chatModel, chatOpts, err := c.prepareCall(modelID, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	return retry(ctx, c.cfg, func() (*schema.Message, error) {
+		return chatModel.Generate(ctx, messages, chatOpts...)
+	})
+}
+
+func (c *Client) Stream(ctx context.Context, modelID string, messages []*schema.Message, opts *converter.ChatOptions) (StreamReader, error) {
+	chatModel, chatOpts, err := c.prepareCall(modelID, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	stream, err := retry(ctx, c.cfg, func() (*schema.StreamReader[*schema.Message], error) {
+		return chatModel.Stream(ctx, messages, chatOpts...)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return &streamReaderWrapper{stream: stream}, nil
+}
+
+func (c *Client) prepareCall(modelID string, opts *converter.ChatOptions) (model.ChatModel, []model.Option, error) {
+	target, err := c.cfg.ResolveModel(modelID)
+	if err != nil {
+		return nil, nil, &ClientError{
+			StatusCode: http.StatusBadRequest,
+			Message:    err.Error(),
+			Err:        err,
+		}
+	}
+
+	chatModel, ok := c.models[target.ModelID]
+	if !ok {
+		return nil, nil, &ClientError{
+			StatusCode: http.StatusInternalServerError,
+			Message:    fmt.Sprintf("model not initialized: %s", modelID),
+		}
+	}
+
+	if opts != nil && opts.MaxTokens != nil && target.MaxTokens > 0 && *opts.MaxTokens > target.MaxTokens {
+		return nil, nil, &ClientError{
+			StatusCode: http.StatusBadRequest,
+			Message:    fmt.Sprintf("max_tokens exceeds configured limit (%d) for model %s", target.MaxTokens, modelID),
+		}
+	}
+
+	chatOpts, err := convertOptions(opts)
+	if err != nil {
+		return nil, nil, &ClientError{
+			StatusCode: http.StatusBadRequest,
+			Message:    err.Error(),
+			Err:        err,
+		}
+	}
+	return chatModel, chatOpts, nil
+}
+
+func convertOptions(opts *converter.ChatOptions) ([]model.Option, error) {
+	if opts == nil {
+		return nil, nil
+	}
+
+	var chatOpts []model.Option
+
+	if opts.Temperature != nil {
+		temp := float32(*opts.Temperature)
+		chatOpts = append(chatOpts, model.WithTemperature(temp))
+	}
+	if opts.MaxTokens != nil {
+		maxTok := *opts.MaxTokens
+		chatOpts = append(chatOpts, model.WithMaxTokens(maxTok))
+	}
+	if opts.TopP != nil {
+		topP := float32(*opts.TopP)
+		chatOpts = append(chatOpts, model.WithTopP(topP))
+	}
+	// OpenAI does not expose top_k directly; we map it to top_p only when top_p
+	// is not explicitly provided.
+	if opts.TopP == nil && opts.TopK != nil {
+		mappedTopP := mapTopKToTopP(*opts.TopK)
+		chatOpts = append(chatOpts, model.WithTopP(mappedTopP))
+	}
+	if len(opts.Stop) > 0 {
+		chatOpts = append(chatOpts, model.WithStop(opts.Stop))
+	}
+	if len(opts.Tools) > 0 {
+		chatOpts = append(chatOpts, model.WithTools(opts.Tools))
+	}
+	if opts.ToolChoice != nil {
+		chatOpts = append(chatOpts, model.WithToolChoice(*opts.ToolChoice, opts.AllowedToolNames...))
+	}
+
+	if opts.Thinking != nil && opts.Thinking.Enabled {
+		chatOpts = append(chatOpts, openai.WithReasoningEffort(mapThinkingBudgetToOpenAIEffort(opts.Thinking.BudgetTokens)))
+	}
+	return chatOpts, nil
+}
+
+func mapTopKToTopP(topK int) float32 {
+	switch {
+	case topK <= 0:
+		return 1.0
+	case topK <= 20:
+		return 0.2
+	case topK <= 40:
+		return 0.35
+	case topK <= 100:
+		return 0.6
+	case topK <= 200:
+		return 0.8
+	default:
+		return 0.95
+	}
+}
+
+func mapThinkingBudgetToOpenAIEffort(budgetTokens int) openai.ReasoningEffortLevel {
+	switch {
+	case budgetTokens <= 2048:
+		return openai.ReasoningEffortLevelLow
+	case budgetTokens <= 8192:
+		return openai.ReasoningEffortLevelMedium
+	default:
+		return openai.ReasoningEffortLevelHigh
+	}
+}
+
+type streamReaderWrapper struct {
+	stream *schema.StreamReader[*schema.Message]
+}
+
+func (s *streamReaderWrapper) Recv() (*schema.Message, error) {
+	return s.stream.Recv()
+}
+
+func (s *streamReaderWrapper) Close() {
+	s.stream.Close()
+}
+
+func retry[T any](ctx context.Context, cfg *config.Config, fn func() (T, error)) (T, error) {
+	var zero T
+
+	maxRetries := cfg.Retry.MaxRetries
+	initialDelay := time.Duration(cfg.Retry.InitialBackoffMS) * time.Millisecond
+	maxDelay := time.Duration(cfg.Retry.MaxBackoffMS) * time.Millisecond
+
+	attempt := 0
+	for {
+		result, err := fn()
+		if err == nil {
+			return result, nil
+		}
+
+		if attempt >= maxRetries || !isRetryableError(err) {
+			return zero, err
+		}
+
+		delay := initialDelay
+		if attempt > 0 {
+			delay = maxDelay
+		}
+		if delay > maxDelay {
+			delay = maxDelay
+		}
+
+		timer := time.NewTimer(delay)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return zero, ctx.Err()
+		case <-timer.C:
+		}
+
+		attempt++
+	}
+}
+
+func isRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	var clientErr *ClientError
+	if errors.As(err, &clientErr) {
+		return false
+	}
+
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return false
+	}
+
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		return true
+	}
+
+	statusCode := extractStatusCode(err)
+	return statusCode == http.StatusTooManyRequests || statusCode >= 500
+}
+
+func extractStatusCode(err error) int {
+	var openAIErr *openai.APIError
+	if errors.As(err, &openAIErr) {
+		return openAIErr.HTTPStatusCode
+	}
+
+	match := statusCodePattern.FindStringSubmatch(err.Error())
+	if len(match) < 2 {
+		return 0
+	}
+	code, convErr := strconv.Atoi(match[1])
+	if convErr != nil {
+		return 0
+	}
+	return code
+}
