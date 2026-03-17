@@ -89,7 +89,7 @@ func intPtr(i int) *int {
 	return &i
 }
 
-func convertMessages(msgs []types.Message, system interface{}, fallbackToolName string) ([]*schema.Message, error) {
+func convertMessages(msgs []types.Message, system any, fallbackToolName string) ([]*schema.Message, error) {
 	var result []*schema.Message
 
 	if system != nil {
@@ -113,7 +113,7 @@ func convertMessages(msgs []types.Message, system interface{}, fallbackToolName 
 	return result, nil
 }
 
-func extractSystemContent(system interface{}) (string, error) {
+func extractSystemContent(system any) (string, error) {
 	switch v := system.(type) {
 	case string:
 		return v, nil

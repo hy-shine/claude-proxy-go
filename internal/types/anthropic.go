@@ -11,7 +11,7 @@ type MessagesRequest struct {
 	Model         string          `json:"model" validate:"required"`
 	MaxTokens     int             `json:"max_tokens" validate:"required"`
 	Messages      []Message       `json:"messages" validate:"required"`
-	System        interface{}     `json:"system,omitempty"`
+	System        any             `json:"system,omitempty"`
 	StopSequences []string        `json:"stop_sequences,omitempty"`
 	Stream        *bool           `json:"stream,omitempty"`
 	Temperature   *float64        `json:"temperature,omitempty"`
@@ -33,7 +33,7 @@ type ThinkingConfig struct {
 
 type Message struct {
 	Role    string      `json:"role" validate:"required"`
-	Content interface{} `json:"content" validate:"required"`
+	Content any      `json:"content" validate:"required"`
 }
 
 type ContentBlock struct {
@@ -46,8 +46,8 @@ type ContentBlock struct {
 	Name  string `json:"name,omitempty"`
 	Input any    `json:"input,omitempty"`
 
-	ToolUseID string      `json:"tool_use_id,omitempty"`
-	Content   interface{} `json:"content,omitempty"`
+	ToolUseID string `json:"tool_use_id,omitempty"`
+	Content   any    `json:"content,omitempty"`
 }
 
 type ContentBlockSource struct {
@@ -69,9 +69,9 @@ type ToolChoice struct {
 }
 
 type TokenCountRequest struct {
-	Model      string          `json:"model" validate:"required"`
-	Messages   []Message       `json:"messages" validate:"required"`
-	System     interface{}     `json:"system,omitempty"`
+	Model      string  `json:"model" validate:"required"`
+	Messages   []Message `json:"messages" validate:"required"`
+	System     any      `json:"system,omitempty"`
 	Tools      []Tool          `json:"tools,omitempty"`
 	Thinking   *ThinkingConfig `json:"thinking,omitempty"`
 	ToolChoice *ToolChoice     `json:"tool_choice,omitempty"`

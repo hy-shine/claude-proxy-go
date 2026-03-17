@@ -10,18 +10,26 @@ import (
 	"github.com/hy-shine/claude-code-proxy-go/internal/config"
 	"github.com/hy-shine/claude-code-proxy-go/internal/handler"
 	"github.com/hy-shine/claude-code-proxy-go/internal/logger"
+	"github.com/hy-shine/claude-code-proxy-go/internal/version"
 )
 
 var (
 	configPath = flag.String("f", "configs/config.json", "Path to config file")
 	help       = flag.Bool("help", false, "Show help message")
+	showVer    = flag.Bool("v", false, "Show version and exit")
+	showVer2   = flag.Bool("version", false, "Show version and exit")
 )
 
 func main() {
 	flag.Parse()
 
+	if *showVer || *showVer2 {
+		fmt.Println(version.String())
+		return
+	}
+
 	if *help {
-		fmt.Println("Usage: ./server -f <config-file>")
+		fmt.Println("Usage: ./server [-f <config-file>] [-v]")
 		fmt.Println("")
 		fmt.Println("Options:")
 		flag.PrintDefaults()
