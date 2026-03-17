@@ -182,6 +182,55 @@ func TestLoadRejectsUnsupportedLogLevel(t *testing.T) {
 	}
 }
 
+func TestLoadResolvesProviderProxy(t *testing.T) {
+	path := writeTempConfig(t, `{
+  "providers": {
+    "openai": {
+      "apiKey": "sk-test",
+      "proxy": "socks://127.0.0.1:1080",
+      "models": {
+        "m1": { "name": "gpt-4.1-mini" }
+      }
+    }
+  }
+}`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load() error = %v", err)
+	}
+
+	model, err := cfg.ResolveModel("m1")
+	if err != nil {
+		t.Fatalf("ResolveModel() error = %v", err)
+	}
+	if model.Proxy != "socks5://127.0.0.1:1080" {
+		t.Fatalf("proxy normalization mismatch: %q", model.Proxy)
+	}
+}
+
+func TestLoadRejectsInvalidProviderProxy(t *testing.T) {
+	path := writeTempConfig(t, `{
+  "providers": {
+    "openai": {
+      "apiKey": "sk-test",
+      "proxy": "ftp://127.0.0.1:21",
+      "models": {
+        "m1": { "name": "gpt-4.1-mini" }
+      }
+    }
+  }
+}`)
+
+	_, err := Load(path)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	if !strings.Contains(err.Error(), "invalid proxy for provider") {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
 func writeTempConfig(t *testing.T, content string) string {
 	t.Helper()
 	dir := t.TempDir()

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"net/url"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/cloudwego/eino-ext/components/model/openai"
@@ -76,7 +78,39 @@ func buildProviderModel(ctx context.Context, cfg config.ResolvedModel) (model.To
 	}
 
 	openaiCfg := converter.GetOpenAIConfig(cfg.APIKey, cfg.BaseURL, cfg.Name)
+	if cfg.Proxy != "" {
+		httpClient, err := buildHTTPClientWithProxy(cfg.Proxy)
+		if err != nil {
+			return nil, fmt.Errorf("invalid proxy for model %s: %w", cfg.ModelID, err)
+		}
+		openaiCfg.HTTPClient = httpClient
+	}
 	return openai.NewChatModel(ctx, openaiCfg)
+}
+
+func buildHTTPClientWithProxy(proxyAddress string) (*http.Client, error) {
+	normalized := strings.TrimSpace(proxyAddress)
+	if normalized == "" {
+		return nil, fmt.Errorf("proxy address is empty")
+	}
+	if strings.HasPrefix(strings.ToLower(normalized), "socks://") {
+		normalized = "socks5://" + normalized[len("socks://"):]
+	}
+	parsed, err := url.Parse(normalized)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse proxy: %w", err)
+	}
+	if parsed.Scheme == "" {
+		return nil, fmt.Errorf("proxy scheme is required")
+	}
+	if parsed.Host == "" {
+		return nil, fmt.Errorf("proxy host is required")
+	}
+
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.Proxy = http.ProxyURL(parsed)
+
+	return &http.Client{Transport: transport}, nil
 }
 
 func (c *Client) Generate(ctx context.Context, modelID string, messages []*schema.Message, opts *converter.ChatOptions) (*schema.Message, error) {

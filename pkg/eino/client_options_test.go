@@ -2,6 +2,8 @@ package eino
 
 import (
 	"context"
+	"net/http"
+	"net/url"
 	"testing"
 
 	"github.com/cloudwego/eino-ext/components/model/openai"
@@ -124,6 +126,52 @@ func TestMapTopKToTopP(t *testing.T) {
 				t.Fatalf("mapTopKToTopP(%d) = %v, want %v", tt.topK, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestBuildHTTPClientWithProxySupportsHTTP(t *testing.T) {
+	client, err := buildHTTPClientWithProxy("http://127.0.0.1:8080")
+	if err != nil {
+		t.Fatalf("buildHTTPClientWithProxy() error = %v", err)
+	}
+	if client == nil {
+		t.Fatal("expected client, got nil")
+	}
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok || transport == nil {
+		t.Fatalf("unexpected transport: %#v", client.Transport)
+	}
+	proxyURL, err := transport.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "example.com"}})
+	if err != nil {
+		t.Fatalf("proxy func error = %v", err)
+	}
+	if proxyURL == nil || proxyURL.String() != "http://127.0.0.1:8080" {
+		t.Fatalf("proxy mismatch: %#v", proxyURL)
+	}
+}
+
+func TestBuildHTTPClientWithProxySupportsSocksAlias(t *testing.T) {
+	client, err := buildHTTPClientWithProxy("socks://127.0.0.1:1080")
+	if err != nil {
+		t.Fatalf("buildHTTPClientWithProxy() error = %v", err)
+	}
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok || transport == nil {
+		t.Fatalf("unexpected transport: %#v", client.Transport)
+	}
+	proxyURL, err := transport.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "example.com"}})
+	if err != nil {
+		t.Fatalf("proxy func error = %v", err)
+	}
+	if proxyURL == nil || proxyURL.Scheme != "socks5" {
+		t.Fatalf("proxy mismatch: %#v", proxyURL)
+	}
+}
+
+func TestBuildHTTPClientWithProxyRejectsInvalidProxy(t *testing.T) {
+	_, err := buildHTTPClientWithProxy("://bad")
+	if err == nil {
+		t.Fatal("expected error, got nil")
 	}
 }
 

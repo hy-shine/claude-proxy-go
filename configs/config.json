@@ -11,6 +11,7 @@
       "apiType": "openai",
       "apiKey": "sk-your-openai-key",
       "baseUrl": "",
+      "proxy": "",
       "models": {
         "oai_haiku": {
           "name": "gpt-4.1-mini",

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 )
@@ -33,6 +34,7 @@ type ProviderConfig struct {
 	APIType string                 `json:"apiType,omitempty"`
 	APIKey  string                 `json:"apiKey"`
 	BaseURL string                 `json:"baseUrl"`
+	Proxy   string                 `json:"proxy,omitempty"`
 	Models  map[string]ModelConfig `json:"models"`
 }
 
@@ -60,6 +62,7 @@ type ResolvedModel struct {
 	Name      string
 	APIKey    string
 	BaseURL   string
+	Proxy     string
 	MaxTokens int
 }
 
@@ -97,6 +100,7 @@ func (c *Config) ApplyDefaults() {
 		if provider.APIType == "" {
 			provider.APIType = "openai"
 		}
+		provider.Proxy = normalizeProxy(provider.Proxy)
 		if provider.APIType == "openai" && provider.BaseURL == "" {
 			provider.BaseURL = "https://api.openai.com/v1"
 		}
@@ -174,6 +178,9 @@ func (c *Config) Validate() error {
 		if !validAPITypes[apiType] {
 			return fmt.Errorf("unsupported api_type %q for provider %q", provider.APIType, providerID)
 		}
+		if err := validateProxy(provider.Proxy); err != nil {
+			return fmt.Errorf("invalid proxy for provider %q: %w", providerID, err)
+		}
 		if len(provider.Models) == 0 {
 			return fmt.Errorf("providers.%s.models cannot be empty", providerID)
 		}
@@ -200,6 +207,7 @@ func (c *Config) Validate() error {
 					Name:      modelCfg.Name,
 					APIKey:    provider.APIKey,
 					BaseURL:   provider.BaseURL,
+					Proxy:     provider.Proxy,
 					MaxTokens: modelCfg.MaxTokens,
 				}
 			}
@@ -242,4 +250,35 @@ func (c *Config) EnabledModels() map[string]ResolvedModel {
 
 func normalizeAPIType(v string) string {
 	return strings.ToLower(strings.TrimSpace(v))
+}
+
+func normalizeProxy(v string) string {
+	trimmed := strings.TrimSpace(v)
+	if strings.HasPrefix(strings.ToLower(trimmed), "socks://") {
+		return "socks5://" + trimmed[len("socks://"):]
+	}
+	return trimmed
+}
+
+func validateProxy(v string) error {
+	if v == "" {
+		return nil
+	}
+	parsed, err := url.Parse(v)
+	if err != nil {
+		return fmt.Errorf("failed to parse proxy url: %w", err)
+	}
+	if parsed.Scheme == "" {
+		return errors.New("proxy url scheme is required")
+	}
+	if parsed.Host == "" {
+		return errors.New("proxy url host is required")
+	}
+
+	switch strings.ToLower(parsed.Scheme) {
+	case "http", "https", "socks", "socks5", "socks5h":
+		return nil
+	default:
+		return fmt.Errorf("unsupported proxy scheme: %s", parsed.Scheme)
+	}
 }
