@@ -1,6 +1,6 @@
 # Build
 build:
-	CGO_ENABLED=0 go build -o bin/server ./cmd/server
+	CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/claude-proxy-go ./cmd/server
 
 # Dev (run with dev config)
 dev:
@@ -9,10 +9,6 @@ dev:
 # Run
 run:
 	go run ./cmd/server
-
-# Run with config
-run-config:
-	go run ./cmd/server -f configs/config.json
 
 # Test
 test:
@@ -50,4 +46,4 @@ clean:
 # All (build, test, vet)
 all: build test vet
 
-.PHONY: build run run-config test cover lint fmt vet docker-build docker-run clean all
+.PHONY: build run test cover lint fmt vet docker-build docker-run clean all
