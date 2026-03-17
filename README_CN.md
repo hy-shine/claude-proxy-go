@@ -1,7 +1,6 @@
 # Claude Code Proxy Go
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/hy-shine/claude-proxy-go)](https://github.com/hy-shine/claude-proxy-go)
-[![Build Status](https://img.shields.io/github/actions/workflow/status/hy-shine/claude-proxy-go/ci.yml)](https://github.com/hy-shine/claude-proxy-go/actions)
 [![License](https://img.shields.io/github/license/hy-shine/claude-proxy-go)](LICENSE)
 
 **[English](README.md)** | **[繁體中文](README_TW.md)**
@@ -74,17 +73,6 @@ make run
 
 # 或使用自定义配置运行
 ./bin/claude-proxy-go -f configs/config.json
-```
-
-### 使用 Docker
-
-```bash
-# 拉取并运行
-docker run -d -p 8082:8082 -v $(pwd)/configs:/app/configs 1rgs/claude-proxy-go:latest
-
-# 或从源码构建
-docker build -t claude-proxy-go .
-docker run -d -p 8082:8082 -v $(pwd)/configs:/app/configs claude-proxy-go
 ```
 
 ## 配置
