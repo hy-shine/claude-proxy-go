@@ -75,17 +75,6 @@ make run
 ./bin/claude-proxy-go -f configs/config.json
 ```
 
-### Using Docker
-
-```bash
-# Pull and run
-docker run -d -p 8082:8082 -v $(pwd)/configs:/app/configs 1rgs/claude-proxy-go:latest
-
-# Or build from source
-docker build -t claude-proxy-go .
-docker run -d -p 8082:8082 -v $(pwd)/configs:/app/configs claude-proxy-go
-```
-
 ## Configuration
 
 Create `configs/config.json`:
