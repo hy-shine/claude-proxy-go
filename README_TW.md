@@ -2,7 +2,6 @@
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/hy-shine/claude-proxy-go)](https://github.com/hy-shine/claude-proxy-go)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/hy-shine/claude-proxy-go/ci.yml)](https://github.com/hy-shine/claude-proxy-go/actions)
-[![Docker Image](https://img.shields.io/docker/image-size/hy-shine/claude-proxy-go/latest)](https://hub.docker.com/r/hy-shine/claude-proxy-go)
 [![License](https://img.shields.io/github/license/hy-shine/claude-proxy-go)](LICENSE)
 
 **[English](README.md)** | **[简体中文](README_CN.md)**
