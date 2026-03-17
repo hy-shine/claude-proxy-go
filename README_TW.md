@@ -5,28 +5,28 @@
 [![Docker Image](https://img.shields.io/docker/image-size/hy-shine/claude-proxy-go/latest)](https://hub.docker.com/r/hy-shine/claude-proxy-go)
 [![License](https://img.shields.io/github/license/hy-shine/claude-proxy-go)](LICENSE)
 
-**[简体中文](README_CN.md)** | **[繁體中文](README_TW.md)**
+**[English](README.md)** | **[简体中文](README_CN.md)**
 
 ---
 
-## Overview
+## 概述
 
-Claude Proxy Go is a high-performance API proxy that translates **Anthropic-compatible** `/v1/messages` requests into **OpenAI-compatible** provider calls. It enables you to use OpenAI-compatible models (OpenAI, NVIDIA, OpenRouter, etc.) through the Anthropic API interface.
+Claude Proxy Go 是一個高效能 API 代理，將 **Anthropic 相容** 的 `/v1/messages` 請求轉換為 **OpenAI 相容** 的 provider 呼叫。它允許您透過 Anthropic API 介面使用 OpenAI 相容的模型（OpenAI、NVIDIA、OpenRouter 等）。
 
-## Features
+## 功能特性
 
-- **Protocol Translation**: Seamless conversion between Anthropic and OpenAI API formats
-- **Multi-Provider Support**: Works with any OpenAI-compatible provider (OpenAI, NVIDIA, OpenRouter, etc.)
-- **Streaming Support**: Full Server-Sent Events (SSE) streaming with Anthropic event sequence
-- **Tool Calling**: Support for tool definitions, tool_choice (auto/any/tool), and tool result handling
-- **Advanced Parameter Mapping**:
+- **協定轉換**：Anthropic 和 OpenAI API 格式之間的無縫轉換
+- **多 Provider 支援**：支援任何 OpenAI 相容的 provider（OpenAI、NVIDIA、OpenRouter 等）
+- **串流支援**：完整的 Server-Sent Events (SSE) 串流傳輸，採用 Anthropic 事件序列
+- **工具呼叫**：支援工具定義、tool_choice (auto/any/tool) 和工具結果處理
+- **進階參數映射**：
   - `thinking.budget_tokens` → `reasoning_effort` (low/medium/high)
-  - `top_k` → `top_p` mapping when `top_p` is not explicitly set
-- **Retry Mechanism**: Automatic retry with exponential backoff for rate limits (429) and server errors (5xx)
-- **Proxy Support**: HTTP/HTTPS/SOCKS5 proxy for upstream API calls
-- **Production-Ready**: Strict request validation, comprehensive error handling, configurable timeouts
+  - `top_k` → `top_p` 映射（當 `top_p` 未明確設定時）
+- **重試機制**：針對限流（429）和伺服器錯誤（5xx）的自動指數退避重試
+- **代理支援**：支援 HTTP/HTTPS/SOCKS5 代理存取上游 API
+- **生產就緒**：嚴格的請求驗證、全面的錯誤處理、可設定的逾時
 
-## Architecture
+## 架構
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -52,45 +52,45 @@ Claude Proxy Go is a high-performance API proxy that translates **Anthropic-comp
             └─────────────────────────┘
 ```
 
-## Quick Start
+## 快速開始
 
-### Using Go Install
+### 使用 Go Install
 
 ```bash
-# Install directly from GitHub
+# 直接從 GitHub 安裝
 go install github.com/hy-shine/claude-proxy-go/cmd/server@latest
 
-# Run with config
+# 使用設定執行
 claude-proxy-go -f configs/config.json
 ```
 
-### Using Binary
+### 使用二進位檔案
 
 ```bash
-# Build
+# 建置
 make build
 
-# Run with default config
+# 使用預設設定執行
 make run
 
-# Or run with custom config
+# 或使用自訂設定執行
 ./bin/claude-proxy-go -f configs/config.json
 ```
 
-### Using Docker
+### 使用 Docker
 
 ```bash
-# Pull and run
+# 拉取並執行
 docker run -d -p 8082:8082 -v $(pwd)/configs:/app/configs 1rgs/claude-proxy-go:latest
 
-# Or build from source
+# 或從原始碼建置
 docker build -t claude-proxy-go .
 docker run -d -p 8082:8082 -v $(pwd)/configs:/app/configs claude-proxy-go
 ```
 
-## Configuration
+## 設定
 
-Create `configs/config.json`:
+建立 `configs/config.json`：
 
 ```json
 {
@@ -107,24 +107,24 @@ Create `configs/config.json`:
 }
 ```
 
-See [CONFIG.md](CONFIG.md) for full configuration options.
+完整設定選項見 [CONFIG.md](CONFIG.md)。
 
-## Development
+## 開發
 
 ```bash
-# Run tests
+# 執行測試
 make test
 
-# Run with coverage
+# 執行覆蓋率測試
 make cover
 
-# Lint code
+# 程式碼檢查
 make lint
 
-# Format code
+# 程式碼格式化
 make fmt
 ```
 
-## License
+## 授權條款
 
-MIT License - see [LICENSE](LICENSE) file for details.
+MIT 授權條款 - 詳見 [LICENSE](LICENSE) 檔案。
