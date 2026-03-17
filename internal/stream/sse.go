@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/hy-shine/claude-code-proxy-go/internal/converter"
-	"github.com/hy-shine/claude-code-proxy-go/internal/logger"
+	"github.com/hy-shine/claude-proxy-go/internal/converter"
+	"github.com/hy-shine/claude-proxy-go/internal/logger"
 )
 
 type MessageStream interface {

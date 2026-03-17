@@ -8,7 +8,7 @@ import (
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/hy-shine/claude-code-proxy-go/internal/types"
+	"github.com/hy-shine/claude-proxy-go/internal/types"
 )
 
 type ChatOptions struct {

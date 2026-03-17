@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino-ext/components/model/openai"
-	"github.com/hy-shine/claude-code-proxy-go/internal/config"
+	"github.com/hy-shine/claude-proxy-go/internal/config"
 )
 
 func TestRetryRetriesOn429(t *testing.T) {

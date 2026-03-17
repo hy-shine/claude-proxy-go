@@ -7,10 +7,10 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/hy-shine/claude-code-proxy-go/internal/config"
-	"github.com/hy-shine/claude-code-proxy-go/internal/handler"
-	"github.com/hy-shine/claude-code-proxy-go/internal/logger"
-	"github.com/hy-shine/claude-code-proxy-go/internal/version"
+	"github.com/hy-shine/claude-proxy-go/internal/config"
+	"github.com/hy-shine/claude-proxy-go/internal/handler"
+	"github.com/hy-shine/claude-proxy-go/internal/logger"
+	"github.com/hy-shine/claude-proxy-go/internal/version"
 )
 
 var (

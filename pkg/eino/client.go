@@ -16,9 +16,9 @@ import (
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/hy-shine/claude-code-proxy-go/internal/config"
-	"github.com/hy-shine/claude-code-proxy-go/internal/converter"
-	"github.com/hy-shine/claude-code-proxy-go/internal/logger"
+	"github.com/hy-shine/claude-proxy-go/internal/config"
+	"github.com/hy-shine/claude-proxy-go/internal/converter"
+	"github.com/hy-shine/claude-proxy-go/internal/logger"
 )
 
 var statusCodePattern = regexp.MustCompile(`(?i)\bstatus(?:\s*code)?[:=]?\s*(\d{3})\b`)

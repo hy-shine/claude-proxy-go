@@ -10,12 +10,12 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/hy-shine/claude-code-proxy-go/internal/config"
-	"github.com/hy-shine/claude-code-proxy-go/internal/converter"
-	"github.com/hy-shine/claude-code-proxy-go/internal/logger"
-	"github.com/hy-shine/claude-code-proxy-go/internal/stream"
-	"github.com/hy-shine/claude-code-proxy-go/internal/types"
-	"github.com/hy-shine/claude-code-proxy-go/pkg/eino"
+	"github.com/hy-shine/claude-proxy-go/internal/config"
+	"github.com/hy-shine/claude-proxy-go/internal/converter"
+	"github.com/hy-shine/claude-proxy-go/internal/logger"
+	"github.com/hy-shine/claude-proxy-go/internal/stream"
+	"github.com/hy-shine/claude-proxy-go/internal/types"
+	"github.com/hy-shine/claude-proxy-go/pkg/eino"
 )
 
 type Handler struct {

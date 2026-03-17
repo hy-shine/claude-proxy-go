@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/cloudwego/eino/schema"
-	"github.com/hy-shine/claude-code-proxy-go/internal/types"
+	"github.com/hy-shine/claude-proxy-go/internal/types"
 )
 
 func TestToEinoRequestKeepsThinkingAndTopK(t *testing.T) {
