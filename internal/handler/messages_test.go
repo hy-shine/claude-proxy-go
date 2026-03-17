@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/1rgs/claude-code-proxy-go/internal/types"
+	"github.com/hy-shine/claude-code-proxy-go/internal/types"
 )
 
 func TestValidateMessagesRequestAcceptsOptionalTypeMessage(t *testing.T) {

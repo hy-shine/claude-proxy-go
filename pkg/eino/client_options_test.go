@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/1rgs/claude-code-proxy-go/internal/config"
-	"github.com/1rgs/claude-code-proxy-go/internal/converter"
-	"github.com/1rgs/claude-code-proxy-go/internal/types"
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
+	"github.com/hy-shine/claude-code-proxy-go/internal/config"
+	"github.com/hy-shine/claude-code-proxy-go/internal/converter"
+	"github.com/hy-shine/claude-code-proxy-go/internal/types"
 )
 
 type fakeChatModel struct{}
@@ -24,15 +24,15 @@ func (f *fakeChatModel) Stream(_ context.Context, _ []*schema.Message, _ ...mode
 	return reader, nil
 }
 
-func (f *fakeChatModel) BindTools(_ []*schema.ToolInfo) error {
-	return nil
+func (f *fakeChatModel) WithTools(_ []*schema.ToolInfo) (model.ToolCallingChatModel, error) {
+	return f, nil
 }
 
 func TestPrepareCallMapsTopKToTopPForOpenAI(t *testing.T) {
 	cfg := mustBuildConfig(t, "m1")
 	c := &Client{
 		cfg:    cfg,
-		models: map[string]model.ChatModel{"m1": &fakeChatModel{}},
+		models: map[string]model.ToolCallingChatModel{"m1": &fakeChatModel{}},
 	}
 
 	topK := 40

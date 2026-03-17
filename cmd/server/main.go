@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 
-	"github.com/1rgs/claude-code-proxy-go/internal/config"
-	"github.com/1rgs/claude-code-proxy-go/internal/handler"
-	"github.com/1rgs/claude-code-proxy-go/internal/logger"
+	"github.com/hy-shine/claude-code-proxy-go/internal/config"
+	"github.com/hy-shine/claude-code-proxy-go/internal/handler"
+	"github.com/hy-shine/claude-code-proxy-go/internal/logger"
 )
 
 var (
@@ -44,7 +45,7 @@ func main() {
 	h, err := handler.NewHandler(cfg)
 	if err != nil {
 		logger.Errorf("Failed to create handler: %v", err)
-		log.Fatal(err)
+		os.Exit(1)
 	}
 
 	// Register routes
@@ -56,6 +57,6 @@ func main() {
 	logger.Infof("Server starting on %s", addr)
 	if err := http.ListenAndServe(addr, nil); err != nil {
 		logger.Errorf("Server stopped with error: %v", err)
-		log.Fatal(err)
+		os.Exit(1)
 	}
 }

@@ -55,3 +55,19 @@ func TestFromEinoResponseIncludesStopSequenceWhenResolvable(t *testing.T) {
 		t.Fatalf("usage mismatch: %#v", out.Usage)
 	}
 }
+
+func TestFromEinoResponseNilMessageDoesNotPanic(t *testing.T) {
+	out := FromEinoResponse(nil, "model-id", nil)
+	if out == nil {
+		t.Fatal("expected response, got nil")
+	}
+	if out.Role != "assistant" {
+		t.Fatalf("role mismatch: %q", out.Role)
+	}
+	if out.StopReason != "end_turn" {
+		t.Fatalf("stop reason mismatch: %q", out.StopReason)
+	}
+	if len(out.Content) != 1 || out.Content[0].Type != "text" || out.Content[0].Text != "" {
+		t.Fatalf("content mismatch: %#v", out.Content)
+	}
+}

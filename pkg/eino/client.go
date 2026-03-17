@@ -14,9 +14,9 @@ import (
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/1rgs/claude-code-proxy-go/internal/config"
-	"github.com/1rgs/claude-code-proxy-go/internal/converter"
-	"github.com/1rgs/claude-code-proxy-go/internal/logger"
+	"github.com/hy-shine/claude-code-proxy-go/internal/config"
+	"github.com/hy-shine/claude-code-proxy-go/internal/converter"
+	"github.com/hy-shine/claude-code-proxy-go/internal/logger"
 )
 
 var statusCodePattern = regexp.MustCompile(`(?i)\bstatus(?:\s*code)?[:=]?\s*(\d{3})\b`)
@@ -45,13 +45,13 @@ func (e *ClientError) Unwrap() error {
 
 type Client struct {
 	cfg    *config.Config
-	models map[string]model.ChatModel
+	models map[string]model.ToolCallingChatModel
 }
 
 func NewClient(cfg *config.Config) (*Client, error) {
 	client := &Client{
 		cfg:    cfg,
-		models: make(map[string]model.ChatModel),
+		models: make(map[string]model.ToolCallingChatModel),
 	}
 
 	models := cfg.EnabledModels()
@@ -70,7 +70,7 @@ func NewClient(cfg *config.Config) (*Client, error) {
 	return client, nil
 }
 
-func buildProviderModel(ctx context.Context, cfg config.ResolvedModel) (model.ChatModel, error) {
+func buildProviderModel(ctx context.Context, cfg config.ResolvedModel) (model.ToolCallingChatModel, error) {
 	if cfg.APIType != "openai" {
 		return nil, fmt.Errorf("unsupported api_type: %s", cfg.APIType)
 	}
@@ -106,7 +106,7 @@ func (c *Client) Stream(ctx context.Context, modelID string, messages []*schema.
 	return &streamReaderWrapper{stream: stream}, nil
 }
 
-func (c *Client) prepareCall(modelID string, opts *converter.ChatOptions) (model.ChatModel, []model.Option, error) {
+func (c *Client) prepareCall(modelID string, opts *converter.ChatOptions) (model.ToolCallingChatModel, []model.Option, error) {
 	target, err := c.cfg.ResolveModel(modelID)
 	if err != nil {
 		return nil, nil, &ClientError{
@@ -239,7 +239,11 @@ func retry[T any](ctx context.Context, cfg *config.Config, fn func() (T, error))
 		}
 
 		if attempt >= maxRetries || !isRetryableError(err) {
-			logger.Warnf("Model call failed without retry: attempt=%d max_retries=%d error=%v", attempt+1, maxRetries, err)
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				logger.Infof("Model call canceled or timed out: attempt=%d max_retries=%d error=%v", attempt+1, maxRetries, err)
+			} else {
+				logger.Warnf("Model call failed without retry: attempt=%d max_retries=%d error=%v", attempt+1, maxRetries, err)
+			}
 			return zero, err
 		}
 		logger.Warnf("Model call failed, retrying: attempt=%d max_retries=%d error=%v", attempt+1, maxRetries, err)

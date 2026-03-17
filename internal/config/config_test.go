@@ -11,7 +11,7 @@ func TestLoadAppliesDefaultsAndResolvesModel(t *testing.T) {
 	path := writeTempConfig(t, `{
   "providers": {
     "openai": {
-      "api_key": "sk-test",
+      "apiKey": "sk-test",
       "models": {
         "m1": { "name": "gpt-4.1-mini" }
       }
@@ -25,7 +25,7 @@ func TestLoadAppliesDefaultsAndResolvesModel(t *testing.T) {
 	}
 
 	if got := cfg.Providers["openai"].BaseURL; got != "https://api.openai.com/v1" {
-		t.Fatalf("openai base_url default mismatch: %q", got)
+		t.Fatalf("openai baseUrl default mismatch: %q", got)
 	}
 	if got := cfg.Log.Level; got != "info" {
 		t.Fatalf("log level default mismatch: %q", got)
@@ -39,7 +39,7 @@ func TestLoadAppliesDefaultsAndResolvesModel(t *testing.T) {
 		t.Fatalf("resolved model mismatch: %#v", model)
 	}
 	if model.APIType != "openai" {
-		t.Fatalf("api_type default mismatch: %#v", model)
+		t.Fatalf("apiType default mismatch: %#v", model)
 	}
 }
 
@@ -47,7 +47,7 @@ func TestLoadRejectsUnknownFields(t *testing.T) {
 	path := writeTempConfig(t, `{
   "providers": {
     "openai": {
-      "api_key": "sk-test",
+      "apiKey": "sk-test",
       "models": {
         "m1": { "name": "gpt-4.1-mini", "unknown_field": 1 }
       }
@@ -68,7 +68,7 @@ func TestLoadAllowsArbitraryProviderNameWithDefaultOpenAIType(t *testing.T) {
 	path := writeTempConfig(t, `{
   "providers": {
     "nvidia": {
-      "api_key": "sk-nvidia",
+      "apiKey": "sk-nvidia",
       "models": { "m1": { "name": "gpt-4.1-mini" } }
     }
   }
@@ -87,7 +87,7 @@ func TestLoadAllowsArbitraryProviderNameWithDefaultOpenAIType(t *testing.T) {
 		t.Fatalf("resolved model mismatch: %#v", model)
 	}
 	if model.BaseURL != "https://api.openai.com/v1" {
-		t.Fatalf("base_url default mismatch: %q", model.BaseURL)
+		t.Fatalf("baseUrl default mismatch: %q", model.BaseURL)
 	}
 }
 
@@ -95,7 +95,7 @@ func TestLoadRejectsWhenAllModelsDisabled(t *testing.T) {
 	path := writeTempConfig(t, `{
   "providers": {
     "openai": {
-      "api_key": "sk-openai",
+      "apiKey": "sk-openai",
       "models": {
         "m1": { "name": "gpt-4.1-mini", "enabled": false }
       }
@@ -116,8 +116,8 @@ func TestLoadRejectsUnsupportedAPIType(t *testing.T) {
 	path := writeTempConfig(t, `{
   "providers": {
     "azure_openai": {
-      "api_type": "gemini",
-      "api_key": "sk-azure",
+      "apiType": "gemini",
+      "apiKey": "sk-azure",
       "models": {
         "m1": { "name": "gpt-4.1-mini" }
       }
@@ -138,7 +138,7 @@ func TestLoadAllowsEmptyAPIKey(t *testing.T) {
 	path := writeTempConfig(t, `{
   "providers": {
     "openai": {
-      "api_key": "",
+      "apiKey": "",
       "models": {
         "m1": { "name": "gpt-4.1-mini" }
       }
@@ -165,7 +165,7 @@ func TestLoadRejectsUnsupportedLogLevel(t *testing.T) {
   "log": { "level": "trace" },
   "providers": {
     "openai": {
-      "api_key": "sk-test",
+      "apiKey": "sk-test",
       "models": {
         "m1": { "name": "gpt-4.1-mini" }
       }

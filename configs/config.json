@@ -8,30 +8,30 @@
   },
   "providers": {
     "openai": {
-      "api_type": "openai",
-      "api_key": "sk-your-openai-key",
-      "base_url": "",
+      "apiType": "openai",
+      "apiKey": "sk-your-openai-key",
+      "baseUrl": "",
       "models": {
         "oai_haiku": {
           "name": "gpt-4.1-mini",
           "enabled": true,
-          "max_tokens": 16384
+          "maxTokens": 16384
         },
         "oai_sonnet": {
           "name": "gpt-4.1",
           "enabled": true,
-          "max_tokens": 16384
+          "maxTokens": 16384
         }
       }
     }
   },
   "retry": {
-    "max_retries": 2,
-    "initial_backoff_ms": 200,
-    "max_backoff_ms": 800
+    "maxRetries": 2,
+    "initialBackoffMs": 200,
+    "maxBackoffMs": 800
   },
   "timeout": {
-    "request_seconds": 60,
-    "stream_seconds": 300
+    "requestTimeout": 60,
+    "streamTimeout": 300
   }
 }

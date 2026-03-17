@@ -6,12 +6,18 @@ import (
 	"strings"
 	"time"
 
-	"github.com/1rgs/claude-code-proxy-go/internal/types"
 	"github.com/cloudwego/eino/schema"
+	"github.com/hy-shine/claude-code-proxy-go/internal/types"
 )
 
 func FromEinoResponse(resp *schema.Message, originalModel string, requestedStopSequences []string) *types.MessagesResponse {
-	content := convertContent(resp.Content, resp.ToolCalls)
+	text := ""
+	var toolCalls []schema.ToolCall
+	if resp != nil {
+		text = resp.Content
+		toolCalls = resp.ToolCalls
+	}
+	content := convertContent(text, toolCalls)
 
 	stopReason := "end_turn"
 	var stopSequence *string
@@ -88,7 +94,7 @@ func parseToolArguments(raw string) any {
 }
 
 func getUsage(resp *schema.Message, direction string) int {
-	if resp.ResponseMeta == nil || resp.ResponseMeta.Usage == nil {
+	if resp == nil || resp.ResponseMeta == nil || resp.ResponseMeta.Usage == nil {
 		return 0
 	}
 

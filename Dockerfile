@@ -10,7 +10,7 @@ RUN go mod download
 COPY . .
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o server ./cmd/server
+RUN CGO_ENABLED=0 GOOS=linux go build -o claude-proxy-go ./cmd/server
 
 # Final stage
 FROM alpine:latest
@@ -21,9 +21,9 @@ WORKDIR /app
 RUN apk --no-cache add ca-certificates
 
 # Copy binary
-COPY --from=builder /app/server .
+COPY --from=builder /app/claude-proxy-go .
 COPY --from=builder /app/configs ./configs
 
 EXPOSE 8082
 
-CMD ["./server", "-f", "configs/config.json"]
+CMD ["./claude-proxy-go", "-f", "configs/config.json"]

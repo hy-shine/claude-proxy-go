@@ -1,4 +1,4 @@
-module github.com/1rgs/claude-code-proxy-go
+module github.com/hy-shine/claude-code-proxy-go
 
 go 1.24
 

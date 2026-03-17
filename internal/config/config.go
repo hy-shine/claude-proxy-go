@@ -30,27 +30,27 @@ type LogConfig struct {
 }
 
 type ProviderConfig struct {
-	APIType string                 `json:"api_type,omitempty"`
-	APIKey  string                 `json:"api_key"`
-	BaseURL string                 `json:"base_url"`
+	APIType string                 `json:"apiType,omitempty"`
+	APIKey  string                 `json:"apiKey"`
+	BaseURL string                 `json:"baseUrl"`
 	Models  map[string]ModelConfig `json:"models"`
 }
 
 type ModelConfig struct {
 	Name      string `json:"name"`
 	Enabled   *bool  `json:"enabled,omitempty"`
-	MaxTokens int    `json:"max_tokens,omitempty"`
+	MaxTokens int    `json:"maxTokens,omitempty"`
 }
 
 type RetryConfig struct {
-	MaxRetries       int `json:"max_retries"`
-	InitialBackoffMS int `json:"initial_backoff_ms"`
-	MaxBackoffMS     int `json:"max_backoff_ms"`
+	MaxRetries       int `json:"maxRetries"`
+	InitialBackoffMS int `json:"initialBackoffMs"`
+	MaxBackoffMS     int `json:"maxBackoffMs"`
 }
 
 type TimeoutConfig struct {
-	RequestSeconds int `json:"request_seconds"`
-	StreamSeconds  int `json:"stream_seconds"`
+	RequestTimeout int `json:"requestTimeout"`
+	StreamTimeout  int `json:"streamTimeout"`
 }
 
 type ResolvedModel struct {
@@ -115,11 +115,11 @@ func (c *Config) ApplyDefaults() {
 	if c.Retry.MaxBackoffMS == 0 {
 		c.Retry.MaxBackoffMS = 800
 	}
-	if c.Timeout.RequestSeconds == 0 {
-		c.Timeout.RequestSeconds = 60
+	if c.Timeout.RequestTimeout == 0 {
+		c.Timeout.RequestTimeout = 60
 	}
-	if c.Timeout.StreamSeconds == 0 {
-		c.Timeout.StreamSeconds = 300
+	if c.Timeout.StreamTimeout == 0 {
+		c.Timeout.StreamTimeout = 300
 	}
 
 	if c.Server.Host == "" {
@@ -140,12 +140,12 @@ func (c *Config) Validate() error {
 	}
 
 	if c.Retry.MaxRetries < 0 {
-		return errors.New("retry.max_retries cannot be negative")
+		return errors.New("retry.maxRetries cannot be negative")
 	}
 	if c.Retry.InitialBackoffMS <= 0 || c.Retry.MaxBackoffMS <= 0 {
 		return errors.New("retry backoff values must be positive")
 	}
-	if c.Timeout.RequestSeconds <= 0 || c.Timeout.StreamSeconds <= 0 {
+	if c.Timeout.RequestTimeout <= 0 || c.Timeout.StreamTimeout <= 0 {
 		return errors.New("timeout values must be positive")
 	}
 	switch normalizeAPIType(c.Log.Level) {

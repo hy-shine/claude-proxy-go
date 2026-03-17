@@ -4,22 +4,26 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"sync/atomic"
 	"time"
 
-	"github.com/1rgs/claude-code-proxy-go/internal/config"
-	"github.com/1rgs/claude-code-proxy-go/internal/converter"
-	"github.com/1rgs/claude-code-proxy-go/internal/logger"
-	"github.com/1rgs/claude-code-proxy-go/internal/stream"
-	"github.com/1rgs/claude-code-proxy-go/internal/types"
-	"github.com/1rgs/claude-code-proxy-go/pkg/eino"
+	"github.com/hy-shine/claude-code-proxy-go/internal/config"
+	"github.com/hy-shine/claude-code-proxy-go/internal/converter"
+	"github.com/hy-shine/claude-code-proxy-go/internal/logger"
+	"github.com/hy-shine/claude-code-proxy-go/internal/stream"
+	"github.com/hy-shine/claude-code-proxy-go/internal/types"
+	"github.com/hy-shine/claude-code-proxy-go/pkg/eino"
 )
 
 type Handler struct {
 	cfg    *config.Config
 	client *eino.Client
 }
+
+var requestSeq uint64
 
 func NewHandler(cfg *config.Config) (*Handler, error) {
 	client, err := eino.NewClient(cfg)
@@ -34,48 +38,56 @@ func NewHandler(cfg *config.Config) (*Handler, error) {
 }
 
 func (h *Handler) HandleMessages(w http.ResponseWriter, r *http.Request) {
+	reqID := requestIDFromHeader(r)
+	rw := newResponseLogger(w)
+	started := time.Now()
+	defer func() {
+		logger.Infof("Request finished: req_id=%s path=%s method=%s status=%d latency_ms=%d bytes=%d",
+			reqID, r.URL.Path, r.Method, rw.StatusCode(), time.Since(started).Milliseconds(), rw.BytesWritten())
+	}()
+
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		http.Error(rw, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	var req types.MessagesRequest
 	if err := decodeJSONStrict(r.Body, &req); err != nil {
-		logger.Warnf("Request decode failed: path=%s remote=%s error=%v", r.URL.Path, r.RemoteAddr, err)
-		h.sendError(w, http.StatusBadRequest, "Invalid JSON: "+err.Error())
+		logger.Infof("Request decode failed: req_id=%s path=%s remote=%s error=%v", reqID, r.URL.Path, r.RemoteAddr, err)
+		h.sendError(rw, http.StatusBadRequest, "Invalid JSON: "+err.Error())
 		return
 	}
 
 	if err := validateMessagesRequest(&req); err != nil {
-		logger.Warnf("Request validation failed: model=%s path=%s error=%v", req.Model, r.URL.Path, err)
-		h.sendError(w, http.StatusBadRequest, err.Error())
+		logger.Infof("Request validation failed: req_id=%s model=%s path=%s error=%v", reqID, req.Model, r.URL.Path, err)
+		h.sendError(rw, http.StatusBadRequest, err.Error())
 		return
 	}
 
-	logger.Infof("Request accepted: model=%s stream=%v remote=%s", req.Model, req.Stream != nil && *req.Stream, r.RemoteAddr)
+	logger.Infof("Request accepted: req_id=%s model=%s stream=%v remote=%s", reqID, req.Model, req.Stream != nil && *req.Stream, r.RemoteAddr)
 
 	if req.Stream != nil && *req.Stream {
-		h.handleStream(w, r, &req)
+		h.handleStream(rw, r, &req, reqID)
 		return
 	}
 
-	h.handleNonStream(w, r, &req)
+	h.handleNonStream(rw, r, &req, reqID)
 }
 
-func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, req *types.MessagesRequest) {
+func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, req *types.MessagesRequest, reqID string) {
 	messages, opts, err := converter.ToEinoRequest(req)
 	if err != nil {
-		logger.Warnf("Request conversion failed: model=%s stream=false error=%v", req.Model, err)
+		logger.Infof("Request conversion failed: req_id=%s model=%s stream=false error=%v", reqID, req.Model, err)
 		h.sendError(w, http.StatusBadRequest, "Unsupported request: "+err.Error())
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(h.cfg.Timeout.RequestSeconds)*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(h.cfg.Timeout.RequestTimeout)*time.Second)
 	defer cancel()
 
 	resp, err := h.client.Generate(ctx, req.Model, messages, opts)
 	if err != nil {
-		h.sendModelError(w, "Generation failed", err)
+		h.sendModelError(w, reqID, "Generation failed", err)
 		return
 	}
 
@@ -83,27 +95,27 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, req *t
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(anthropicResp); err != nil {
-		logger.Errorf("Response encoding failed: model=%s error=%v", req.Model, err)
+		logger.Errorf("Response encoding failed: req_id=%s model=%s error=%v", reqID, req.Model, err)
 		h.sendError(w, http.StatusInternalServerError, "Failed to encode response")
 		return
 	}
-	logger.Debugf("Request completed: model=%s stream=false", req.Model)
+	logger.Debugf("Request completed: req_id=%s model=%s stream=false", reqID, req.Model)
 }
 
-func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, req *types.MessagesRequest) {
+func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, req *types.MessagesRequest, reqID string) {
 	messages, opts, err := converter.ToEinoRequest(req)
 	if err != nil {
-		logger.Warnf("Request conversion failed: model=%s stream=true error=%v", req.Model, err)
+		logger.Infof("Request conversion failed: req_id=%s model=%s stream=true error=%v", reqID, req.Model, err)
 		h.sendError(w, http.StatusBadRequest, "Unsupported request: "+err.Error())
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(h.cfg.Timeout.StreamSeconds)*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(h.cfg.Timeout.StreamTimeout)*time.Second)
 	defer cancel()
 
 	streamResp, err := h.client.Stream(ctx, req.Model, messages, opts)
 	if err != nil {
-		h.sendModelError(w, "Stream failed", err)
+		h.sendModelError(w, reqID, "Stream failed", err)
 		return
 	}
 	defer streamResp.Close()
@@ -115,20 +127,34 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, req *type
 
 	sseHandler := stream.NewSSEHandler(req.Model, req.StopSequences)
 	if err := sseHandler.StreamToClient(streamResp, w); err != nil {
-		logger.Warnf("Stream error: model=%s error=%v", req.Model, err)
+		logger.Warnf("Stream error: req_id=%s model=%s error=%v", reqID, req.Model, err)
 		return
 	}
-	logger.Debugf("Request completed: model=%s stream=true", req.Model)
+	logger.Debugf("Request completed: req_id=%s model=%s stream=true", reqID, req.Model)
 }
 
-func (h *Handler) sendModelError(w http.ResponseWriter, prefix string, err error) {
+func (h *Handler) sendModelError(w http.ResponseWriter, reqID, prefix string, err error) {
+	if errors.Is(err, context.Canceled) {
+		logger.Infof("%s: req_id=%s canceled by client", prefix, reqID)
+		return
+	}
+	if errors.Is(err, context.DeadlineExceeded) {
+		logger.Warnf("%s: req_id=%s timed out", prefix, reqID)
+		h.sendError(w, http.StatusGatewayTimeout, "upstream request timeout")
+		return
+	}
+
 	var clientErr *eino.ClientError
 	if errors.As(err, &clientErr) {
-		logger.Warnf("%s: status=%d message=%s", prefix, clientErr.StatusCode, clientErr.Message)
+		if clientErr.StatusCode >= http.StatusInternalServerError {
+			logger.Warnf("%s: req_id=%s status=%d message=%s", prefix, reqID, clientErr.StatusCode, clientErr.Message)
+		} else {
+			logger.Infof("%s: req_id=%s status=%d message=%s", prefix, reqID, clientErr.StatusCode, clientErr.Message)
+		}
 		h.sendError(w, clientErr.StatusCode, clientErr.Message)
 		return
 	}
-	logger.Errorf("%s: %v", prefix, err)
+	logger.Errorf("%s: req_id=%s error=%v", prefix, reqID, err)
 	h.sendError(w, http.StatusInternalServerError, prefix+": "+err.Error())
 }
 
@@ -179,4 +205,61 @@ func validateMessagesRequest(req *types.MessagesRequest) error {
 		return errors.New("messages cannot be empty")
 	}
 	return nil
+}
+
+func requestIDFromHeader(r *http.Request) string {
+	reqID := r.Header.Get("X-Request-Id")
+	if reqID == "" {
+		reqID = r.Header.Get("X-Request-ID")
+	}
+	if reqID != "" {
+		return reqID
+	}
+	seq := atomic.AddUint64(&requestSeq, 1)
+	return fmt.Sprintf("req_%d_%d", time.Now().UnixNano(), seq)
+}
+
+type responseLogger struct {
+	http.ResponseWriter
+	status      int
+	bytes       int
+	wroteHeader bool
+}
+
+func newResponseLogger(w http.ResponseWriter) *responseLogger {
+	return &responseLogger{
+		ResponseWriter: w,
+		status:         http.StatusOK,
+	}
+}
+
+func (l *responseLogger) WriteHeader(code int) {
+	if !l.wroteHeader {
+		l.status = code
+		l.wroteHeader = true
+	}
+	l.ResponseWriter.WriteHeader(code)
+}
+
+func (l *responseLogger) Write(p []byte) (int, error) {
+	if !l.wroteHeader {
+		l.WriteHeader(http.StatusOK)
+	}
+	n, err := l.ResponseWriter.Write(p)
+	l.bytes += n
+	return n, err
+}
+
+func (l *responseLogger) StatusCode() int {
+	return l.status
+}
+
+func (l *responseLogger) BytesWritten() int {
+	return l.bytes
+}
+
+func (l *responseLogger) Flush() {
+	if flusher, ok := l.ResponseWriter.(http.Flusher); ok {
+		flusher.Flush()
+	}
 }

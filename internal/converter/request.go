@@ -8,7 +8,7 @@ import (
 	"github.com/cloudwego/eino-ext/components/model/openai"
 	"github.com/cloudwego/eino/schema"
 
-	"github.com/1rgs/claude-code-proxy-go/internal/types"
+	"github.com/hy-shine/claude-code-proxy-go/internal/types"
 )
 
 type ChatOptions struct {
@@ -30,11 +30,15 @@ func ToEinoRequest(req *types.MessagesRequest) ([]*schema.Message, *ChatOptions,
 	if req.TopK != nil && *req.TopK < 0 {
 		return nil, nil, fmt.Errorf("top_k must be >= 0")
 	}
-	if req.Thinking != nil {
-		if req.Thinking.BudgetTokens < 0 {
+	thinkingCfg, err := normalizeThinking(req.Thinking)
+	if err != nil {
+		return nil, nil, err
+	}
+	if thinkingCfg != nil {
+		if thinkingCfg.BudgetTokens < 0 {
 			return nil, nil, fmt.Errorf("thinking.budget_tokens must be >= 0")
 		}
-		if req.Thinking.Enabled && req.Thinking.BudgetTokens <= 0 {
+		if thinkingCfg.Enabled && thinkingCfg.BudgetTokens <= 0 {
 			return nil, nil, fmt.Errorf("thinking.budget_tokens must be > 0 when thinking.enabled is true")
 		}
 	}
@@ -54,7 +58,7 @@ func ToEinoRequest(req *types.MessagesRequest) ([]*schema.Message, *ChatOptions,
 		MaxTokens:   intPtr(req.MaxTokens),
 		TopP:        req.TopP,
 		TopK:        req.TopK,
-		Thinking:    req.Thinking,
+		Thinking:    thinkingCfg,
 		Stop:        req.StopSequences,
 	}
 
@@ -132,7 +136,7 @@ func extractSystemContent(system interface{}) (string, error) {
 }
 
 func convertMessage(msg types.Message, fallbackToolName string) ([]*schema.Message, error) {
-	role := schema.User
+	var role schema.RoleType
 	switch msg.Role {
 	case "system":
 		role = schema.System
@@ -445,6 +449,33 @@ func sanitizeToolName(raw string) string {
 		out = out[:64]
 	}
 	return out
+}
+
+func normalizeThinking(thinking *types.ThinkingConfig) (*types.ThinkingConfig, error) {
+	if thinking == nil {
+		return nil, nil
+	}
+
+	out := *thinking
+	out.Type = strings.ToLower(strings.TrimSpace(out.Type))
+	switch out.Type {
+	case "", "enabled", "disabled":
+	default:
+		return nil, fmt.Errorf("thinking.type must be enabled or disabled")
+	}
+
+	if out.Enabled && out.Type == "disabled" {
+		return nil, fmt.Errorf("thinking.enabled conflicts with thinking.type=disabled")
+	}
+
+	if out.Type == "enabled" {
+		out.Enabled = true
+	}
+	if out.Type == "disabled" {
+		out.Enabled = false
+	}
+
+	return &out, nil
 }
 
 func convertTools(tools []types.Tool) ([]*schema.ToolInfo, error) {

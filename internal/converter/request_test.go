@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/1rgs/claude-code-proxy-go/internal/types"
 	"github.com/cloudwego/eino/schema"
+	"github.com/hy-shine/claude-code-proxy-go/internal/types"
 )
 
 func TestToEinoRequestKeepsThinkingAndTopK(t *testing.T) {
@@ -28,6 +28,49 @@ func TestToEinoRequestKeepsThinkingAndTopK(t *testing.T) {
 	}
 	if opts.Thinking == nil || !opts.Thinking.Enabled || opts.Thinking.BudgetTokens != 128 {
 		t.Fatalf("Thinking mismatch: %#v", opts.Thinking)
+	}
+}
+
+func TestToEinoRequestAcceptsThinkingTypeEnabled(t *testing.T) {
+	req := &types.MessagesRequest{
+		Model:     "m1",
+		MaxTokens: 32,
+		Messages:  []types.Message{{Role: "user", Content: "hello"}},
+		Thinking:  &types.ThinkingConfig{Type: "enabled", BudgetTokens: 2048},
+	}
+
+	_, opts, err := ToEinoRequest(req)
+	if err != nil {
+		t.Fatalf("ToEinoRequest() error = %v", err)
+	}
+	if opts.Thinking == nil {
+		t.Fatalf("Thinking mismatch: %#v", opts.Thinking)
+	}
+	if !opts.Thinking.Enabled {
+		t.Fatalf("expected thinking enabled, got %#v", opts.Thinking)
+	}
+	if opts.Thinking.BudgetTokens != 2048 {
+		t.Fatalf("budget mismatch: %#v", opts.Thinking)
+	}
+}
+
+func TestToEinoRequestAcceptsThinkingTypeDisabled(t *testing.T) {
+	req := &types.MessagesRequest{
+		Model:     "m1",
+		MaxTokens: 32,
+		Messages:  []types.Message{{Role: "user", Content: "hello"}},
+		Thinking:  &types.ThinkingConfig{Type: "disabled"},
+	}
+
+	_, opts, err := ToEinoRequest(req)
+	if err != nil {
+		t.Fatalf("ToEinoRequest() error = %v", err)
+	}
+	if opts.Thinking == nil {
+		t.Fatalf("Thinking mismatch: %#v", opts.Thinking)
+	}
+	if opts.Thinking.Enabled {
+		t.Fatalf("expected thinking disabled, got %#v", opts.Thinking)
 	}
 }
 
@@ -58,6 +101,26 @@ func TestToEinoRequestRejectsInvalidThinkingAndTopK(t *testing.T) {
 				Thinking:  &types.ThinkingConfig{Enabled: true, BudgetTokens: 0},
 			},
 			want: "thinking.budget_tokens must be > 0",
+		},
+		{
+			name: "invalid thinking type",
+			req: &types.MessagesRequest{
+				Model:     "m1",
+				MaxTokens: 32,
+				Messages:  []types.Message{{Role: "user", Content: "hello"}},
+				Thinking:  &types.ThinkingConfig{Type: "auto", BudgetTokens: 512},
+			},
+			want: "thinking.type must be enabled or disabled",
+		},
+		{
+			name: "thinking enabled conflicts with disabled type",
+			req: &types.MessagesRequest{
+				Model:     "m1",
+				MaxTokens: 32,
+				Messages:  []types.Message{{Role: "user", Content: "hello"}},
+				Thinking:  &types.ThinkingConfig{Enabled: true, Type: "disabled", BudgetTokens: 512},
+			},
+			want: "thinking.enabled conflicts with thinking.type=disabled",
 		},
 	}
 

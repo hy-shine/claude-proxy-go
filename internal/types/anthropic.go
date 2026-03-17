@@ -26,8 +26,9 @@ type MessagesRequest struct {
 }
 
 type ThinkingConfig struct {
-	Enabled      bool `json:"enabled"`
-	BudgetTokens int  `json:"budget_tokens"`
+	Type         string `json:"type,omitempty"`
+	Enabled      bool   `json:"enabled"`
+	BudgetTokens int    `json:"budget_tokens"`
 }
 
 type Message struct {
