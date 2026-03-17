@@ -1,0 +1,53 @@
+# Binaries
+bin/
+
+# Coverage
+coverage.out
+coverage.html
+
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test artifacts
+*.test
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# Vendor (if used)
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config with secrets (keep config.json as template)
+configs/config.local.json
+configs/config.*.local.json
+configs/config.dev.json
+*.local.json
+
+# Environment
+.env
+.env.local
+*.env
+
+# Logs
+*.log
+
+# Temporary
+tmp/
+temp/

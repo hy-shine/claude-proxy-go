@@ -1,0 +1,38 @@
+{
+  "server": {
+    "host": "0.0.0.0",
+    "port": 8082
+  },
+  "log": {
+    "level": "info"
+  },
+  "providers": {
+    "openai": {
+      "apiType": "openai",
+      "apiKey": "sk-your-openai-key",
+      "baseUrl": "",
+      "proxy": "",
+      "models": {
+        "oai_haiku": {
+          "name": "gpt-4.1-mini",
+          "enabled": true,
+          "maxTokens": 16384
+        },
+        "oai_sonnet": {
+          "name": "gpt-4.1",
+          "enabled": true,
+          "maxTokens": 16384
+        }
+      }
+    }
+  },
+  "retry": {
+    "maxRetries": 2,
+    "initialBackoffMs": 200,
+    "maxBackoffMs": 800
+  },
+  "timeout": {
+    "requestTimeout": 60,
+    "streamTimeout": 300
+  }
+}
