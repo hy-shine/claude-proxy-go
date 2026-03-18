@@ -1,4 +1,4 @@
-# Claude Code Proxy Go
+# Claude Proxy Go
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/hy-shine/claude-proxy-go)](https://github.com/hy-shine/claude-proxy-go)
 [![License](https://img.shields.io/github/license/hy-shine/claude-proxy-go)](LICENSE)
@@ -28,7 +28,7 @@ Claude Proxy Go is a high-performance API proxy that translates **Anthropic-comp
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    Claude Code Proxy                            │
+│                    Claude Proxy Go                              │
 │                                                                 │
 │  ┌──────────────┐    ┌──────────────┐    ┌──────────────────┐  │
 │  │   Handler    │───▶│  Converter   │───▶│   Eino Client    │  │

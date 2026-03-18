@@ -170,7 +170,7 @@ func TestToEinoRequestToolChoiceMapping(t *testing.T) {
 	}
 }
 
-func TestToEinoRequestRejectsUnsupportedContentBlock(t *testing.T) {
+func TestToEinoRequestConvertsDocumentBlock(t *testing.T) {
 	req := &types.MessagesRequest{
 		Model:     "m1",
 		MaxTokens: 16,
@@ -178,7 +178,85 @@ func TestToEinoRequestRejectsUnsupportedContentBlock(t *testing.T) {
 			{
 				Role: "user",
 				Content: []any{
-					map[string]any{"type": "document", "source": "x"},
+					map[string]any{
+						"type":    "document",
+						"title":   "Design Spec",
+						"context": "Architecture",
+						"source": map[string]any{
+							"type": "text",
+							"text": "This is the document body.",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	msgs, _, err := ToEinoRequest(req)
+	if err != nil {
+		t.Fatalf("ToEinoRequest() error = %v", err)
+	}
+
+	if len(msgs) != 1 {
+		t.Fatalf("messages length = %d, want 1", len(msgs))
+	}
+	if msgs[0].Role != schema.User {
+		t.Fatalf("role mismatch: %s", msgs[0].Role)
+	}
+	if !strings.Contains(msgs[0].Content, "Document title: Design Spec") {
+		t.Fatalf("missing title in converted content: %q", msgs[0].Content)
+	}
+	if !strings.Contains(msgs[0].Content, "This is the document body.") {
+		t.Fatalf("missing document text in converted content: %q", msgs[0].Content)
+	}
+}
+
+func TestToEinoRequestConvertsDocumentBase64BlockToReference(t *testing.T) {
+	req := &types.MessagesRequest{
+		Model:     "m1",
+		MaxTokens: 16,
+		Messages: []types.Message{
+			{
+				Role: "user",
+				Content: []any{
+					map[string]any{
+						"type": "document",
+						"source": map[string]any{
+							"type":       "base64",
+							"media_type": "application/pdf",
+							"data":       "cGRmLWRhdGE=",
+						},
+					},
+				},
+			},
+		},
+	}
+
+	msgs, _, err := ToEinoRequest(req)
+	if err != nil {
+		t.Fatalf("ToEinoRequest() error = %v", err)
+	}
+
+	if len(msgs) != 1 {
+		t.Fatalf("messages length = %d, want 1", len(msgs))
+	}
+	if !strings.Contains(msgs[0].Content, "Document attachment") {
+		t.Fatalf("missing attachment marker: %q", msgs[0].Content)
+	}
+	if !strings.Contains(msgs[0].Content, "media_type=application/pdf") {
+		t.Fatalf("missing media_type marker: %q", msgs[0].Content)
+	}
+}
+
+func TestToEinoRequestRejectsDocumentWithoutTextOrSource(t *testing.T) {
+	req := &types.MessagesRequest{
+		Model:     "m1",
+		MaxTokens: 16,
+		Messages: []types.Message{
+			{
+				Role: "user",
+				Content: []any{
+					map[string]any{"type": "document"},
 				},
 			},
 		},
@@ -188,7 +266,7 @@ func TestToEinoRequestRejectsUnsupportedContentBlock(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
-	if !strings.Contains(err.Error(), "unsupported content block type") {
+	if !strings.Contains(err.Error(), "document block requires text or source object") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

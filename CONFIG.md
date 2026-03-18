@@ -1,6 +1,6 @@
 # Configuration Guide
 
-This document describes all configuration options for Claude Code Proxy Go.
+This document describes all configuration options for Claude Proxy Go.
 
 ## Configuration File
 
