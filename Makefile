@@ -8,7 +8,7 @@ LDFLAGS := -s -w \
 
 # Build
 build:
-	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -o bin/claude-proxy-go ./cmd/server
+	CGO_ENABLED=0 go build -ldflags="$(LDFLAGS)" -trimpath -o bin/claude-proxy-go ./cmd/server
 
 # Dev (run with dev config)
 dev:
@@ -41,11 +41,11 @@ vet:
 
 # Docker build
 docker-build:
-	docker build -t claude-code-proxy-go:latest .
+	docker build -t claude-proxy-go:latest .
 
 # Docker run
 docker-run:
-	docker run -p 8082:8082 -v $(PWD)/configs:/app/configs claude-code-proxy-go:latest
+	docker run -p 8082:8082 -v $(PWD)/configs:/app/configs claude-proxy-go:latest
 
 # Clean
 clean:

@@ -200,6 +200,12 @@ func extractMessageContent(content any) (string, error) {
 			case "text":
 				text, _ := block["text"].(string)
 				sb.WriteString(text)
+			case "document":
+				docText, err := convertDocumentBlock(block)
+				if err != nil {
+					return "", err
+				}
+				sb.WriteString(docText)
 			case "tool_result":
 				sb.WriteString(ParseToolResultContent(block["content"]))
 			default:
@@ -224,15 +230,21 @@ func convertAssistantBlocks(blocks []any, fallbackToolName string) ([]*schema.Me
 			return nil, fmt.Errorf("invalid content block format")
 		}
 
-		blockType, _ := block["type"].(string)
-		switch blockType {
-		case "text":
-			text, _ := block["text"].(string)
-			sb.WriteString(text)
-		case "tool_use":
-			toolID, _ := block["id"].(string)
-			name, _ := block["name"].(string)
-			if toolID == "" {
+			blockType, _ := block["type"].(string)
+			switch blockType {
+			case "text":
+				text, _ := block["text"].(string)
+				sb.WriteString(text)
+			case "document":
+				docText, err := convertDocumentBlock(block)
+				if err != nil {
+					return nil, err
+				}
+				sb.WriteString(docText)
+			case "tool_use":
+				toolID, _ := block["id"].(string)
+				name, _ := block["name"].(string)
+				if toolID == "" {
 				return nil, fmt.Errorf("tool_use.id is required")
 			}
 			name = normalizeToolName(name, toolID, fallbackToolName)
@@ -304,15 +316,21 @@ func convertUserBlocks(blocks []any) ([]*schema.Message, error) {
 			return nil, fmt.Errorf("invalid content block format")
 		}
 
-		blockType, _ := block["type"].(string)
-		switch blockType {
-		case "text":
-			text, _ := block["text"].(string)
-			textBuilder.WriteString(text)
-		case "image":
-			imagePart, err := convertUserImageBlock(block)
-			if err != nil {
-				return nil, err
+			blockType, _ := block["type"].(string)
+			switch blockType {
+			case "text":
+				text, _ := block["text"].(string)
+				textBuilder.WriteString(text)
+			case "document":
+				docText, err := convertDocumentBlock(block)
+				if err != nil {
+					return nil, err
+				}
+				textBuilder.WriteString(docText)
+			case "image":
+				imagePart, err := convertUserImageBlock(block)
+				if err != nil {
+					return nil, err
 			}
 			if !multiMode {
 				flushTextToParts()
@@ -387,6 +405,83 @@ func convertUserImageBlock(block map[string]any) (schema.MessageInputPart, error
 	default:
 		return schema.MessageInputPart{}, fmt.Errorf("unsupported image source type: %s", sourceType)
 	}
+}
+
+func convertDocumentBlock(block map[string]any) (string, error) {
+	title := strings.TrimSpace(getString(block, "title"))
+	context := strings.TrimSpace(getString(block, "context"))
+	if text := strings.TrimSpace(getString(block, "text")); text != "" {
+		return formatDocumentText(title, context, text), nil
+	}
+
+	source, ok := block["source"].(map[string]any)
+	if !ok {
+		return "", fmt.Errorf("document block requires text or source object")
+	}
+
+	sourceType := strings.TrimSpace(getString(source, "type"))
+	switch sourceType {
+	case "text":
+		text := strings.TrimSpace(getString(source, "text"))
+		if text == "" {
+			return "", fmt.Errorf("document text source requires text")
+		}
+		return formatDocumentText(title, context, text), nil
+	case "url":
+		url := strings.TrimSpace(getString(source, "url"))
+		if url == "" {
+			return "", fmt.Errorf("document url source requires url")
+		}
+		return formatDocumentReference(title, context, fmt.Sprintf("Document URL: %s", url)), nil
+	case "base64":
+		mediaType := strings.TrimSpace(getString(source, "media_type"))
+		data := getString(source, "data")
+		if mediaType == "" {
+			return "", fmt.Errorf("document base64 source requires media_type")
+		}
+		if data == "" {
+			return "", fmt.Errorf("document base64 source requires data")
+		}
+		return formatDocumentReference(
+			title,
+			context,
+			fmt.Sprintf("Document attachment (media_type=%s, base64_bytes=%d)", mediaType, len(data)),
+		), nil
+	default:
+		return "", fmt.Errorf("unsupported document source type: %s", sourceType)
+	}
+}
+
+func formatDocumentText(title, context, text string) string {
+	var sb strings.Builder
+	if title != "" {
+		sb.WriteString("Document title: ")
+		sb.WriteString(title)
+		sb.WriteString("\n")
+	}
+	if context != "" {
+		sb.WriteString("Document context: ")
+		sb.WriteString(context)
+		sb.WriteString("\n")
+	}
+	sb.WriteString(text)
+	return sb.String()
+}
+
+func formatDocumentReference(title, context, body string) string {
+	var sb strings.Builder
+	if title != "" {
+		sb.WriteString("Document title: ")
+		sb.WriteString(title)
+		sb.WriteString("\n")
+	}
+	if context != "" {
+		sb.WriteString("Document context: ")
+		sb.WriteString(context)
+		sb.WriteString("\n")
+	}
+	sb.WriteString(body)
+	return sb.String()
 }
 
 func strPtr(v string) *string {
