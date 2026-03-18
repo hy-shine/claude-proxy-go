@@ -1,4 +1,10 @@
-VERSION ?= dev
+VERSION := $(shell \
+    TAG=$$(git describe --tags --exact-match 2>/dev/null); \
+    if [ -n "$$TAG" ]; then \
+        echo "$$TAG"; \
+    else \
+        echo "$$(git rev-parse --short HEAD)-$$(date -u +%Y-%m-%d)"; \
+    fi)
 COMMIT ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
 BUILD_TIME ?= $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 LDFLAGS := -s -w \
