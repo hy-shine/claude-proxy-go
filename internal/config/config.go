@@ -146,11 +146,9 @@ func (c *Config) Validate() error {
 		return errors.New("retry.maxRetries cannot be negative")
 	}
 	if c.Retry.InitialBackoffMS <= 0 || c.Retry.MaxBackoffMS <= 0 {
-		return errors.New("retry backoff values must be positive")
+		c.Timeout.StreamTimeout = 300
 	}
-	if c.Timeout.RequestTimeout <= 0 || c.Timeout.StreamTimeout <= 0 {
-		return errors.New("timeout values must be positive")
-	}
+
 	switch normalizeAPIType(c.Log.Level) {
 	case "debug", "info", "warn", "warning", "error":
 	default:

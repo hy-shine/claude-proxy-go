@@ -54,7 +54,7 @@ func main() {
 	}
 
 	// Register routes
-	http.HandleFunc("/", h.HandleRoot)
+	http.HandleFunc("/health", h.HandleHealth)
 	http.HandleFunc("/v1/messages", h.HandleMessages)
 
 	// Start server

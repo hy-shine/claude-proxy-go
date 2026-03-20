@@ -266,21 +266,26 @@ func retry[T any](ctx context.Context, cfg *config.Config, fn func() (T, error))
 	maxDelay := time.Duration(cfg.Retry.MaxBackoffMS) * time.Millisecond
 
 	attempt := 0
+	start := time.Now()
 	for {
 		result, err := fn()
 		if err == nil {
 			return result, nil
 		}
 
+		elapsed := time.Since(start)
+
 		if attempt >= maxRetries || !isRetryableError(err) {
-			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
-				logger.Infof("Model call canceled or timed out: attempt=%d max_retries=%d error=%v", attempt+1, maxRetries, err)
+			if errors.Is(err, context.Canceled) {
+				logger.Warnf("Upstream request canceled: elapsed=%v attempt=%d/%d error=%v", elapsed.Round(time.Millisecond), attempt+1, maxRetries+1, err)
+			} else if errors.Is(err, context.DeadlineExceeded) {
+				logger.Warnf("Upstream request timed out: elapsed=%v attempt=%d/%d error=%v", elapsed.Round(time.Millisecond), attempt+1, maxRetries+1, err)
 			} else {
-				logger.Warnf("Model call failed without retry: attempt=%d max_retries=%d error=%v", attempt+1, maxRetries, err)
+				logger.Warnf("Upstream request failed: elapsed=%v attempt=%d/%d error=%v", elapsed.Round(time.Millisecond), attempt+1, maxRetries+1, err)
 			}
 			return zero, err
 		}
-		logger.Warnf("Model call failed, retrying: attempt=%d max_retries=%d error=%v", attempt+1, maxRetries, err)
+		logger.Warnf("Upstream request failed, retrying: elapsed=%v attempt=%d/%d error=%v", elapsed.Round(time.Millisecond), attempt+1, maxRetries+1, err)
 
 		delay := initialDelay
 		if attempt > 0 {

@@ -96,6 +96,40 @@ make run
 
 完整配置选项见 [CONFIG.md](CONFIG.md)。
 
+## API
+
+### 健康检查
+
+```bash
+curl http://localhost:8082/health
+# {"status": "ok"}
+```
+
+### 非流式请求
+
+```bash
+curl -X POST http://localhost:8082/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+### 流式请求
+
+```bash
+curl -X POST http://localhost:8082/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet",
+    "max_tokens": 1024,
+    "stream": true,
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
 ## 开发
 
 ```bash

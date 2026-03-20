@@ -96,6 +96,40 @@ Create `configs/config.json`:
 
 See [CONFIG.md](CONFIG.md) for full configuration options.
 
+## API
+
+### Health Check
+
+```bash
+curl http://localhost:8082/health
+# {"status": "ok"}
+```
+
+### Non-Streaming Request
+
+```bash
+curl -X POST http://localhost:8082/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet",
+    "max_tokens": 1024,
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
+### Streaming Request
+
+```bash
+curl -X POST http://localhost:8082/v1/messages \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "claude-sonnet",
+    "max_tokens": 1024,
+    "stream": true,
+    "messages": [{"role": "user", "content": "Hello"}]
+  }'
+```
+
 ## Development
 
 ```bash

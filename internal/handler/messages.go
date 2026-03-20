@@ -82,8 +82,31 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, req *t
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(h.cfg.Timeout.RequestTimeout)*time.Second)
+	timeout := time.Duration(h.cfg.Timeout.RequestTimeout) * time.Second
+	logger.Debugf("Request timeout configured: req_id=%s model=%s timeout=%v", reqID, req.Model, timeout)
+
+	ctx, cancel := context.WithTimeout(r.Context(), timeout)
 	defer cancel()
+
+	// Track context cancellation timing
+	start := time.Now()
+	done := make(chan struct{})
+	go func() {
+		select {
+		case <-ctx.Done():
+			elapsed := time.Since(start)
+			switch ctx.Err() {
+			case context.Canceled:
+				logger.Warnf("Request canceled by client: req_id=%s model=%s elapsed=%v", reqID, req.Model, elapsed.Round(time.Millisecond))
+			case context.DeadlineExceeded:
+				logger.Warnf("Request timed out: req_id=%s model=%s elapsed=%v timeout=%v", reqID, req.Model, elapsed.Round(time.Millisecond), timeout)
+			default:
+				logger.Warnf("Request context done: req_id=%s model=%s elapsed=%v err=%v", reqID, req.Model, elapsed.Round(time.Millisecond), ctx.Err())
+			}
+		case <-done:
+		}
+	}()
+	defer close(done)
 
 	resp, err := h.client.Generate(ctx, req.Model, messages, opts)
 	if err != nil {
@@ -167,7 +190,7 @@ func (h *Handler) sendError(w http.ResponseWriter, statusCode int, message strin
 	})
 }
 
-func (h *Handler) HandleRoot(w http.ResponseWriter, r *http.Request) {
+func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -175,7 +198,7 @@ func (h *Handler) HandleRoot(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{
-		"message": "Claude API compatible proxy",
+		"status": "ok",
 	})
 }
 
