@@ -32,8 +32,8 @@ type ThinkingConfig struct {
 }
 
 type Message struct {
-	Role    string      `json:"role" validate:"required"`
-	Content any      `json:"content" validate:"required"`
+	Role    string `json:"role" validate:"required"`
+	Content any    `json:"content" validate:"required"`
 }
 
 type ContentBlock struct {
@@ -68,26 +68,11 @@ type ToolChoice struct {
 	Name string `json:"name,omitempty"`
 }
 
-type TokenCountRequest struct {
-	Model      string  `json:"model" validate:"required"`
-	Messages   []Message `json:"messages" validate:"required"`
-	System     any      `json:"system,omitempty"`
-	Tools      []Tool          `json:"tools,omitempty"`
-	Thinking   *ThinkingConfig `json:"thinking,omitempty"`
-	ToolChoice *ToolChoice     `json:"tool_choice,omitempty"`
-
-	OriginalModel string `json:"-"`
-}
-
-type TokenCountResponse struct {
-	InputTokens int `json:"input_tokens"`
-}
-
 type Usage struct {
 	InputTokens              int `json:"input_tokens"`
 	OutputTokens             int `json:"output_tokens"`
-	CacheCreationInputTokens int `json:"cache_creation_input_tokens"`
-	CacheReadInputTokens     int `json:"cache_read_input_tokens"`
+	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
+	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
 }
 
 type MessagesResponse struct {

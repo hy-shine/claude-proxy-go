@@ -230,21 +230,21 @@ func convertAssistantBlocks(blocks []any, fallbackToolName string) ([]*schema.Me
 			return nil, fmt.Errorf("invalid content block format")
 		}
 
-			blockType, _ := block["type"].(string)
-			switch blockType {
-			case "text":
-				text, _ := block["text"].(string)
-				sb.WriteString(text)
-			case "document":
-				docText, err := convertDocumentBlock(block)
-				if err != nil {
-					return nil, err
-				}
-				sb.WriteString(docText)
-			case "tool_use":
-				toolID, _ := block["id"].(string)
-				name, _ := block["name"].(string)
-				if toolID == "" {
+		blockType, _ := block["type"].(string)
+		switch blockType {
+		case "text":
+			text, _ := block["text"].(string)
+			sb.WriteString(text)
+		case "document":
+			docText, err := convertDocumentBlock(block)
+			if err != nil {
+				return nil, err
+			}
+			sb.WriteString(docText)
+		case "tool_use":
+			toolID, _ := block["id"].(string)
+			name, _ := block["name"].(string)
+			if toolID == "" {
 				return nil, fmt.Errorf("tool_use.id is required")
 			}
 			name = normalizeToolName(name, toolID, fallbackToolName)
@@ -316,21 +316,21 @@ func convertUserBlocks(blocks []any) ([]*schema.Message, error) {
 			return nil, fmt.Errorf("invalid content block format")
 		}
 
-			blockType, _ := block["type"].(string)
-			switch blockType {
-			case "text":
-				text, _ := block["text"].(string)
-				textBuilder.WriteString(text)
-			case "document":
-				docText, err := convertDocumentBlock(block)
-				if err != nil {
-					return nil, err
-				}
-				textBuilder.WriteString(docText)
-			case "image":
-				imagePart, err := convertUserImageBlock(block)
-				if err != nil {
-					return nil, err
+		blockType, _ := block["type"].(string)
+		switch blockType {
+		case "text":
+			text, _ := block["text"].(string)
+			textBuilder.WriteString(text)
+		case "document":
+			docText, err := convertDocumentBlock(block)
+			if err != nil {
+				return nil, err
+			}
+			textBuilder.WriteString(docText)
+		case "image":
+			imagePart, err := convertUserImageBlock(block)
+			if err != nil {
+				return nil, err
 			}
 			if !multiMode {
 				flushTextToParts()

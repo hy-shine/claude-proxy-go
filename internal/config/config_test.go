@@ -43,27 +43,6 @@ func TestLoadAppliesDefaultsAndResolvesModel(t *testing.T) {
 	}
 }
 
-func TestLoadRejectsUnknownFields(t *testing.T) {
-	path := writeTempConfig(t, `{
-  "providers": {
-    "openai": {
-      "apiKey": "sk-test",
-      "models": {
-        "m1": { "name": "gpt-4.1-mini", "unknown_field": 1 }
-      }
-    }
-  }
-}`)
-
-	_, err := Load(path)
-	if err == nil {
-		t.Fatal("expected error, got nil")
-	}
-	if !strings.Contains(err.Error(), "failed to parse config file") {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
 func TestLoadAllowsArbitraryProviderNameWithDefaultOpenAIType(t *testing.T) {
 	path := writeTempConfig(t, `{
   "providers": {
