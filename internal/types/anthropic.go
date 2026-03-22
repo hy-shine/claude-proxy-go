@@ -48,6 +48,9 @@ type ContentBlock struct {
 
 	ToolUseID string `json:"tool_use_id,omitempty"`
 	Content   any    `json:"content,omitempty"`
+
+	Thinking  string `json:"thinking,omitempty"`
+	Signature string `json:"signature,omitempty"`
 }
 
 type ContentBlockSource struct {

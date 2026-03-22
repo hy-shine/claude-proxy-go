@@ -12,12 +12,14 @@ import (
 
 func FromEinoResponse(resp *schema.Message, originalModel string, requestedStopSequences []string) *types.MessagesResponse {
 	text := ""
+	reasoningContent := ""
 	var toolCalls []schema.ToolCall
 	if resp != nil {
 		text = resp.Content
+		reasoningContent = resp.ReasoningContent
 		toolCalls = resp.ToolCalls
 	}
-	content := convertContent(text, toolCalls)
+	content := convertContent(reasoningContent, text, toolCalls)
 
 	stopReason := "end_turn"
 	var stopSequence *string
@@ -49,8 +51,15 @@ func generateMessageID() string {
 	return fmt.Sprintf("msg_%d", time.Now().UnixNano())
 }
 
-func convertContent(text string, toolCalls []schema.ToolCall) []types.ContentBlock {
+func convertContent(reasoningContent, text string, toolCalls []schema.ToolCall) []types.ContentBlock {
 	var content []types.ContentBlock
+
+	if reasoningContent != "" {
+		content = append(content, types.ContentBlock{
+			Type:     "thinking",
+			Thinking: reasoningContent,
+		})
+	}
 
 	if text != "" {
 		content = append(content, types.ContentBlock{

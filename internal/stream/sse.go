@@ -20,8 +20,9 @@ type MessageStream interface {
 }
 
 type SSEHandler struct {
-	model         string
-	stopSequences []string
+	model           string
+	stopSequences   []string
+	thinkingEnabled bool
 }
 
 type toolBlockState struct {
@@ -32,10 +33,11 @@ type toolBlockState struct {
 	open         bool
 }
 
-func NewSSEHandler(model string, stopSequences []string) *SSEHandler {
+func NewSSEHandler(model string, stopSequences []string, thinkingEnabled bool) *SSEHandler {
 	return &SSEHandler{
-		model:         model,
-		stopSequences: stopSequences,
+		model:           model,
+		stopSequences:   stopSequences,
+		thinkingEnabled: thinkingEnabled,
 	}
 }
 
@@ -48,10 +50,48 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 	outputTokens := 0
 	toolUsed := false
 	finishReason := ""
-	textBlockOpen := true
+	thinkingBlockOpen := false
+	textBlockOpen := false
 	activeTextIndex := 0
-	nextContentIndex := 1
+	nextContentIndex := 0
 	toolBlocks := make(map[int]*toolBlockState)
+
+	// When thinking is enabled, the thinking block occupies index 0.
+	// Text block starts at index 1.
+	if h.thinkingEnabled {
+		thinkingBlockOpen = true
+		nextContentIndex = 1
+		activeTextIndex = -1 // text not yet opened
+	} else {
+		textBlockOpen = true
+		activeTextIndex = 0
+		nextContentIndex = 1
+	}
+
+	closeThinkingBlock := func() error {
+		if !thinkingBlockOpen {
+			return nil
+		}
+		thinkingBlockOpen = false
+		return h.sendEvent(writer, flusher, "content_block_stop", map[string]any{
+			"type":  "content_block_stop",
+			"index": 0,
+		})
+	}
+
+	openTextBlock := func() error {
+		if textBlockOpen {
+			return nil
+		}
+		activeTextIndex = nextContentIndex
+		nextContentIndex++
+		textBlockOpen = true
+		return h.sendEvent(writer, flusher, "content_block_start", map[string]any{
+			"type":          "content_block_start",
+			"index":         activeTextIndex,
+			"content_block": map[string]any{"type": "text", "text": ""},
+		})
+	}
 
 	closeAllToolBlocks := func() error {
 		positions := make([]int, 0, len(toolBlocks))
@@ -95,12 +135,22 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 		return err
 	}
 
-	if err := h.sendEvent(writer, flusher, "content_block_start", map[string]any{
-		"type":          "content_block_start",
-		"index":         0,
-		"content_block": map[string]any{"type": "text", "text": ""},
-	}); err != nil {
-		return err
+	if h.thinkingEnabled {
+		if err := h.sendEvent(writer, flusher, "content_block_start", map[string]any{
+			"type":          "content_block_start",
+			"index":         0,
+			"content_block": map[string]any{"type": "thinking", "thinking": ""},
+		}); err != nil {
+			return err
+		}
+	} else {
+		if err := h.sendEvent(writer, flusher, "content_block_start", map[string]any{
+			"type":          "content_block_start",
+			"index":         0,
+			"content_block": map[string]any{"type": "text", "text": ""},
+		}); err != nil {
+			return err
+		}
 	}
 
 	if err := h.sendEvent(writer, flusher, "ping", map[string]any{"type": "ping"}); err != nil {
@@ -131,6 +181,16 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 			finishReason = chunk.ResponseMeta.FinishReason
 		}
 
+		if chunk.ReasoningContent != "" && thinkingBlockOpen {
+			if err := h.sendEvent(writer, flusher, "content_block_delta", map[string]any{
+				"type":  "content_block_delta",
+				"index": 0,
+				"delta": map[string]any{"type": "thinking_delta", "thinking": chunk.ReasoningContent},
+			}); err != nil {
+				return err
+			}
+		}
+
 		if chunk.Content != "" {
 			if len(toolBlocks) > 0 {
 				if err := closeAllToolBlocks(); err != nil {
@@ -138,17 +198,12 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 				}
 			}
 
-			if !textBlockOpen {
-				activeTextIndex = nextContentIndex
-				nextContentIndex++
-				if err := h.sendEvent(writer, flusher, "content_block_start", map[string]any{
-					"type":          "content_block_start",
-					"index":         activeTextIndex,
-					"content_block": map[string]any{"type": "text", "text": ""},
-				}); err != nil {
-					return err
-				}
-				textBlockOpen = true
+			if err := closeThinkingBlock(); err != nil {
+				return err
+			}
+
+			if err := openTextBlock(); err != nil {
+				return err
 			}
 
 			if err := h.sendEvent(writer, flusher, "content_block_delta", map[string]any{
@@ -162,6 +217,9 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 
 		if len(chunk.ToolCalls) > 0 {
 			toolUsed = true
+			if err := closeThinkingBlock(); err != nil {
+				return err
+			}
 			if textBlockOpen {
 				if err := h.sendEvent(writer, flusher, "content_block_stop", map[string]any{
 					"type":  "content_block_stop",
@@ -245,6 +303,10 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 		if err := closeAllToolBlocks(); err != nil {
 			return err
 		}
+	}
+
+	if err := closeThinkingBlock(); err != nil {
+		return err
 	}
 
 	if textBlockOpen {

@@ -611,6 +611,76 @@ func TestToEinoRequestInfersAssistantToolUseNameFromSingleConfiguredTool(t *test
 	}
 }
 
+func TestToEinoRequestSkipsThinkingBlocksInAssistantHistory(t *testing.T) {
+	req := &types.MessagesRequest{
+		Model:     "m1",
+		MaxTokens: 100,
+		Messages: []types.Message{
+			{
+				Role: "user",
+				Content: []any{
+					map[string]any{"type": "text", "text": "What is 2+2?"},
+				},
+			},
+			{
+				Role: "assistant",
+				Content: []any{
+					map[string]any{"type": "thinking", "thinking": "Let me calculate..."},
+					map[string]any{"type": "text", "text": "4"},
+				},
+			},
+			{
+				Role: "user",
+				Content: []any{
+					map[string]any{"type": "text", "text": "What about 3+3?"},
+				},
+			},
+		},
+	}
+
+	msgs, _, err := ToEinoRequest(req)
+	if err != nil {
+		t.Fatalf("ToEinoRequest() error = %v", err)
+	}
+	// Should have: user, assistant (thinking skipped), user
+	if len(msgs) != 3 {
+		t.Fatalf("expected 3 messages, got %d: %#v", len(msgs), msgs)
+	}
+	if msgs[1].Role != schema.Assistant {
+		t.Fatalf("msg[1] role = %q, want assistant", msgs[1].Role)
+	}
+	if msgs[1].Content != "4" {
+		t.Fatalf("msg[1] content = %q, want %q", msgs[1].Content, "4")
+	}
+}
+
+func TestToEinoRequestSkipsRedactedThinkingBlocks(t *testing.T) {
+	req := &types.MessagesRequest{
+		Model:     "m1",
+		MaxTokens: 100,
+		Messages: []types.Message{
+			{
+				Role: "assistant",
+				Content: []any{
+					map[string]any{"type": "redacted_thinking", "data": "encrypted..."},
+					map[string]any{"type": "text", "text": "Here is my answer."},
+				},
+			},
+		},
+	}
+
+	msgs, _, err := ToEinoRequest(req)
+	if err != nil {
+		t.Fatalf("ToEinoRequest() error = %v", err)
+	}
+	if len(msgs) != 1 {
+		t.Fatalf("expected 1 message, got %d", len(msgs))
+	}
+	if msgs[0].Content != "Here is my answer." {
+		t.Fatalf("content = %q, want %q", msgs[0].Content, "Here is my answer.")
+	}
+}
+
 func contains(values []string, target string) bool {
 	for _, v := range values {
 		if v == target {

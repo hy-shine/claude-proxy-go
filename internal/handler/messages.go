@@ -148,7 +148,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, req *type
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	sseHandler := stream.NewSSEHandler(req.Model, req.StopSequences)
+	sseHandler := stream.NewSSEHandler(req.Model, req.StopSequences, req.Thinking != nil && req.Thinking.Enabled)
 	if err := sseHandler.StreamToClient(streamResp, w); err != nil {
 		logger.Warnf("Stream error: req_id=%s model=%s error=%v", reqID, req.Model, err)
 		return

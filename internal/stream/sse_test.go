@@ -53,7 +53,7 @@ func (s *errorStream) Recv() (*schema.Message, error) {
 func (s *errorStream) Close() {}
 
 func TestStreamToClientTextOnly(t *testing.T) {
-	h := NewSSEHandler("m1", nil)
+	h := NewSSEHandler("m1", nil, false)
 	rec := httptest.NewRecorder()
 
 	stream := &fakeStream{
@@ -104,7 +104,7 @@ func TestStreamToClientTextOnly(t *testing.T) {
 }
 
 func TestStreamToClientToolUse(t *testing.T) {
-	h := NewSSEHandler("m1", nil)
+	h := NewSSEHandler("m1", nil, false)
 	rec := httptest.NewRecorder()
 
 	stream := &fakeStream{
@@ -157,7 +157,7 @@ func TestStreamToClientToolUse(t *testing.T) {
 }
 
 func TestStreamToClientToolThenText(t *testing.T) {
-	h := NewSSEHandler("m1", nil)
+	h := NewSSEHandler("m1", nil, false)
 	rec := httptest.NewRecorder()
 
 	stream := &fakeStream{
@@ -225,7 +225,7 @@ func TestStreamToClientToolThenText(t *testing.T) {
 }
 
 func TestStreamToClientAggregatesFragmentedToolCallDeltas(t *testing.T) {
-	h := NewSSEHandler("m1", nil)
+	h := NewSSEHandler("m1", nil, false)
 	rec := httptest.NewRecorder()
 
 	stream := &fakeStream{
@@ -307,7 +307,7 @@ func TestStreamToClientAggregatesFragmentedToolCallDeltas(t *testing.T) {
 }
 
 func TestStreamToClientMapsLengthToMaxTokens(t *testing.T) {
-	h := NewSSEHandler("m1", nil)
+	h := NewSSEHandler("m1", nil, false)
 	rec := httptest.NewRecorder()
 
 	stream := &fakeStream{
@@ -337,7 +337,7 @@ func TestStreamToClientMapsLengthToMaxTokens(t *testing.T) {
 }
 
 func TestStreamToClientIncludesStopSequenceWhenResolvable(t *testing.T) {
-	h := NewSSEHandler("m1", []string{"<END>"})
+	h := NewSSEHandler("m1", []string{"<END>"}, false)
 	rec := httptest.NewRecorder()
 
 	stream := &fakeStream{
@@ -371,7 +371,7 @@ func TestStreamToClientIncludesStopSequenceWhenResolvable(t *testing.T) {
 }
 
 func TestStreamToClientEmitsErrorEventOnRecvError(t *testing.T) {
-	h := NewSSEHandler("m1", nil)
+	h := NewSSEHandler("m1", nil, false)
 	rec := httptest.NewRecorder()
 
 	stream := &errorStream{
@@ -399,6 +399,204 @@ func TestStreamToClientEmitsErrorEventOnRecvError(t *testing.T) {
 	}
 	if !strings.Contains(errBody["message"].(string), "upstream disconnected") {
 		t.Fatalf("unexpected error message: %v", errBody["message"])
+	}
+}
+
+func TestStreamToClientWithThinking(t *testing.T) {
+	h := NewSSEHandler("m1", nil, true)
+	rec := httptest.NewRecorder()
+
+	stream := &fakeStream{
+		chunks: []*schema.Message{
+			{
+				ReasoningContent: "Let me think...",
+			},
+			{
+				ReasoningContent: " step by step.",
+			},
+			{
+				Content: "The answer is 42.",
+				ResponseMeta: &schema.ResponseMeta{
+					Usage: &schema.TokenUsage{
+						PromptTokens:     10,
+						CompletionTokens: 25,
+					},
+				},
+			},
+		},
+	}
+
+	if err := h.StreamToClient(stream, rec); err != nil {
+		t.Fatalf("StreamToClient() error = %v", err)
+	}
+
+	events := parseSSEEvents(t, rec.Body.String())
+	names := eventNames(events)
+
+	// Expected order: message_start, content_block_start(thinking), ping,
+	// thinking_delta x2, content_block_stop(thinking, idx=0),
+	// content_block_start(text, idx=1), content_block_delta(text),
+	// content_block_stop(text, idx=1), message_delta, message_stop
+	assertContainsInOrder(t, names, []string{
+		"message_start",
+		"content_block_start",
+		"ping",
+		"content_block_delta",
+		"content_block_delta",
+		"content_block_stop",
+		"content_block_start",
+		"content_block_delta",
+		"content_block_stop",
+		"message_delta",
+		"message_stop",
+	})
+
+	// Verify thinking block start at index 0
+	thinkingStart := events[1]
+	if int(thinkingStart.Data["index"].(float64)) != 0 {
+		t.Fatalf("thinking start index = %v, want 0", thinkingStart.Data["index"])
+	}
+	cb := thinkingStart.Data["content_block"].(map[string]any)
+	if cb["type"] != "thinking" {
+		t.Fatalf("first block type = %v, want thinking", cb["type"])
+	}
+
+	// Verify thinking deltas
+	thinkingDeltas := filterEvents(events, "content_block_delta", 0)
+	if len(thinkingDeltas) != 2 {
+		t.Fatalf("expected 2 thinking deltas, got %d", len(thinkingDeltas))
+	}
+	td1 := thinkingDeltas[0].Data["delta"].(map[string]any)
+	if td1["type"] != "thinking_delta" || td1["thinking"] != "Let me think..." {
+		t.Fatalf("thinking delta 1 mismatch: %v", td1)
+	}
+	td2 := thinkingDeltas[1].Data["delta"].(map[string]any)
+	if td2["type"] != "thinking_delta" || td2["thinking"] != " step by step." {
+		t.Fatalf("thinking delta 2 mismatch: %v", td2)
+	}
+
+	// Verify thinking stop at index 0
+	thinkingStop := findEventByIndex(events, "content_block_stop", 0)
+	if thinkingStop.Event == "" {
+		t.Fatal("expected content_block_stop at index 0 for thinking")
+	}
+
+	// Verify text block starts at index 1
+	textStart := events[6]
+	if int(textStart.Data["index"].(float64)) != 1 {
+		t.Fatalf("text start index = %v, want 1", textStart.Data["index"])
+	}
+	textCB := textStart.Data["content_block"].(map[string]any)
+	if textCB["type"] != "text" {
+		t.Fatalf("text block type = %v, want text", textCB["type"])
+	}
+
+	// Verify text delta at index 1
+	textDeltas := filterEvents(events, "content_block_delta", 1)
+	if len(textDeltas) != 1 || textDeltas[0].Data["delta"].(map[string]any)["text"] != "The answer is 42." {
+		t.Fatalf("text delta mismatch: %v", textDeltas)
+	}
+}
+
+func TestStreamToClientThinkingEnabledNoReasoning(t *testing.T) {
+	h := NewSSEHandler("m1", nil, true)
+	rec := httptest.NewRecorder()
+
+	stream := &fakeStream{
+		chunks: []*schema.Message{
+			{
+				Content: "Hello",
+				ResponseMeta: &schema.ResponseMeta{
+					Usage: &schema.TokenUsage{
+						PromptTokens:     5,
+						CompletionTokens: 3,
+					},
+				},
+			},
+		},
+	}
+
+	if err := h.StreamToClient(stream, rec); err != nil {
+		t.Fatalf("StreamToClient() error = %v", err)
+	}
+
+	events := parseSSEEvents(t, rec.Body.String())
+
+	// Should have: thinking start(idx=0), thinking stop(idx=0), text start(idx=1), text delta(idx=1)
+	// Even with no reasoning content, the thinking block opens and closes immediately
+	thinkingStarts := filterEvents(events, "content_block_start", 0)
+	if len(thinkingStarts) != 1 {
+		t.Fatalf("expected 1 thinking start at index 0, got %d", len(thinkingStarts))
+	}
+	cb := thinkingStarts[0].Data["content_block"].(map[string]any)
+	if cb["type"] != "thinking" {
+		t.Fatalf("block type = %v, want thinking", cb["type"])
+	}
+
+	thinkingStops := filterEvents(events, "content_block_stop", 0)
+	if len(thinkingStops) != 1 {
+		t.Fatalf("expected 1 thinking stop at index 0, got %d", len(thinkingStops))
+	}
+
+	textStarts := filterEvents(events, "content_block_start", 1)
+	if len(textStarts) != 1 {
+		t.Fatalf("expected 1 text start at index 1, got %d", len(textStarts))
+	}
+	textCB := textStarts[0].Data["content_block"].(map[string]any)
+	if textCB["type"] != "text" {
+		t.Fatalf("block type = %v, want text", textCB["type"])
+	}
+}
+
+func TestStreamToClientThinkingThenToolUse(t *testing.T) {
+	h := NewSSEHandler("m1", nil, true)
+	rec := httptest.NewRecorder()
+
+	stream := &fakeStream{
+		chunks: []*schema.Message{
+			{
+				ReasoningContent: "I should use a tool.",
+			},
+			{
+				ToolCalls: []schema.ToolCall{
+					{
+						ID:   "tool_1",
+						Type: "function",
+						Function: schema.FunctionCall{
+							Name:      "get_weather",
+							Arguments: `{"loc":"Paris"}`,
+						},
+					},
+				},
+			},
+		},
+	}
+
+	if err := h.StreamToClient(stream, rec); err != nil {
+		t.Fatalf("StreamToClient() error = %v", err)
+	}
+
+	events := parseSSEEvents(t, rec.Body.String())
+	names := eventNames(events)
+
+	// Thinking block should be closed before tool block opens
+	assertContainsInOrder(t, names, []string{
+		"content_block_start", // thinking (idx=0)
+		"content_block_delta", // thinking_delta (idx=0)
+		"content_block_stop",  // thinking stop (idx=0)
+		"content_block_start", // tool_use (idx=1)
+		"content_block_delta", // input_json_delta
+		"content_block_stop",  // tool stop
+	})
+
+	// Verify tool block is at index 1 (after thinking at 0)
+	toolStarts := filterEvents(events, "content_block_start", 1)
+	if len(toolStarts) != 1 {
+		t.Fatalf("expected 1 tool start at index 1, got %d", len(toolStarts))
+	}
+	toolCB := toolStarts[0].Data["content_block"].(map[string]any)
+	if toolCB["type"] != "tool_use" {
+		t.Fatalf("block type = %v, want tool_use", toolCB["type"])
 	}
 }
 
@@ -481,4 +679,27 @@ func containsEvent(events []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func filterEvents(events []sseEvent, eventName string, index int) []sseEvent {
+	var result []sseEvent
+	for _, ev := range events {
+		if ev.Event == eventName {
+			if idx, ok := ev.Data["index"].(float64); ok && int(idx) == index {
+				result = append(result, ev)
+			}
+		}
+	}
+	return result
+}
+
+func findEventByIndex(events []sseEvent, eventName string, index int) sseEvent {
+	for _, ev := range events {
+		if ev.Event == eventName {
+			if idx, ok := ev.Data["index"].(float64); ok && int(idx) == index {
+				return ev
+			}
+		}
+	}
+	return sseEvent{}
 }

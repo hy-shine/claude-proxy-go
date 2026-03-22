@@ -71,3 +71,72 @@ func TestFromEinoResponseNilMessageDoesNotPanic(t *testing.T) {
 		t.Fatalf("content mismatch: %#v", out.Content)
 	}
 }
+
+func TestFromEinoResponseWithReasoningContent(t *testing.T) {
+	resp := &schema.Message{
+		Role:             schema.Assistant,
+		Content:          "The answer is 42.",
+		ReasoningContent: "Let me think step by step...",
+	}
+
+	out := FromEinoResponse(resp, "model-id", nil)
+	if len(out.Content) != 2 {
+		t.Fatalf("expected 2 content blocks, got %d: %#v", len(out.Content), out.Content)
+	}
+	if out.Content[0].Type != "thinking" {
+		t.Fatalf("first block type = %q, want thinking", out.Content[0].Type)
+	}
+	if out.Content[0].Thinking != "Let me think step by step..." {
+		t.Fatalf("thinking content = %q, mismatch", out.Content[0].Thinking)
+	}
+	if out.Content[1].Type != "text" {
+		t.Fatalf("second block type = %q, want text", out.Content[1].Type)
+	}
+	if out.Content[1].Text != "The answer is 42." {
+		t.Fatalf("text content = %q, mismatch", out.Content[1].Text)
+	}
+}
+
+func TestFromEinoResponseWithoutReasoningContent(t *testing.T) {
+	resp := &schema.Message{
+		Role:    schema.Assistant,
+		Content: "Hello",
+	}
+
+	out := FromEinoResponse(resp, "model-id", nil)
+	if len(out.Content) != 1 {
+		t.Fatalf("expected 1 content block, got %d: %#v", len(out.Content), out.Content)
+	}
+	if out.Content[0].Type != "text" {
+		t.Fatalf("block type = %q, want text", out.Content[0].Type)
+	}
+}
+
+func TestFromEinoResponseThinkingWithToolCalls(t *testing.T) {
+	resp := &schema.Message{
+		Role:             schema.Assistant,
+		Content:          "",
+		ReasoningContent: "I need to call a tool.",
+		ToolCalls: []schema.ToolCall{
+			{
+				ID:   "tool_1",
+				Type: "function",
+				Function: schema.FunctionCall{
+					Name:      "get_weather",
+					Arguments: `{"location":"Paris"}`,
+				},
+			},
+		},
+	}
+
+	out := FromEinoResponse(resp, "model-id", nil)
+	if len(out.Content) != 2 {
+		t.Fatalf("expected 2 content blocks, got %d: %#v", len(out.Content), out.Content)
+	}
+	if out.Content[0].Type != "thinking" {
+		t.Fatalf("first block type = %q, want thinking", out.Content[0].Type)
+	}
+	if out.Content[1].Type != "tool_use" {
+		t.Fatalf("second block type = %q, want tool_use", out.Content[1].Type)
+	}
+}

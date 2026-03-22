@@ -257,6 +257,9 @@ func convertAssistantBlocks(blocks []any, fallbackToolName string) ([]*schema.Me
 					Arguments: args,
 				},
 			})
+		case "thinking", "redacted_thinking":
+			// Skip thinking blocks — OpenAI compatible providers do not accept them.
+			// The reasoning content will be reconstructed by the upstream model if needed.
 		default:
 			return nil, fmt.Errorf("unsupported content block type: %s", blockType)
 		}
