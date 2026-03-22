@@ -66,6 +66,16 @@ func (h *Handler) HandleMessages(w http.ResponseWriter, r *http.Request) {
 
 	logger.Infof("Request accepted: req_id=%s model=%s stream=%v remote=%s", reqID, req.Model, req.Stream != nil && *req.Stream, r.RemoteAddr)
 
+	// Log Anthropic request (masked)
+	logger.Debugw("Anthropic request",
+		"req_id", reqID,
+		"model", req.Model,
+		"stream", req.Stream != nil && *req.Stream,
+		"max_tokens", req.MaxTokens,
+		"messages_count", len(req.Messages),
+		"body", logger.MaskAPIKeys(req),
+	)
+
 	if req.Stream != nil && *req.Stream {
 		h.handleStream(rw, r, &req, reqID)
 		return
@@ -81,6 +91,14 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, req *t
 		h.sendError(w, http.StatusBadRequest, "Unsupported request: "+err.Error())
 		return
 	}
+
+	// Log OpenAI request (masked)
+	logger.Debugw("OpenAI request",
+		"req_id", reqID,
+		"model", req.Model,
+		"messages", logger.MaskAPIKeys(messages),
+		"options", logger.MaskAPIKeys(opts),
+	)
 
 	timeout := time.Duration(h.cfg.Timeout.RequestTimeout) * time.Second
 	logger.Debugf("Request timeout configured: req_id=%s model=%s timeout=%v", reqID, req.Model, timeout)
@@ -114,7 +132,24 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, req *t
 		return
 	}
 
+	// Log OpenAI response
+	logger.Debugw("OpenAI response",
+		"req_id", reqID,
+		"model", req.Model,
+		"role", string(resp.Role),
+		"content_len", len(resp.Content),
+		"tool_calls_count", len(resp.ToolCalls),
+	)
+
 	anthropicResp := converter.FromEinoResponse(resp, req.Model, req.StopSequences)
+
+	// Log Anthropic response
+	logger.Debugw("Anthropic response",
+		"req_id", reqID,
+		"model", req.Model,
+		"id", anthropicResp.ID,
+		"stop_reason", anthropicResp.StopReason,
+	)
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(anthropicResp); err != nil {
@@ -133,6 +168,15 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, req *type
 		return
 	}
 
+	// Log OpenAI request (masked)
+	logger.Debugw("OpenAI request",
+		"req_id", reqID,
+		"model", req.Model,
+		"stream", true,
+		"messages", logger.MaskAPIKeys(messages),
+		"options", logger.MaskAPIKeys(opts),
+	)
+
 	ctx, cancel := context.WithTimeout(r.Context(), time.Duration(h.cfg.Timeout.StreamTimeout)*time.Second)
 	defer cancel()
 
@@ -141,7 +185,10 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, req *type
 		h.sendModelError(w, reqID, "Stream failed", err)
 		return
 	}
-	defer streamResp.Close()
+
+	// Wrap with stream logger for aggregation
+	loggedStream := newStreamLogger(streamResp, reqID, req.Model)
+	defer loggedStream.Close()
 
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
@@ -149,7 +196,7 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, req *type
 	w.Header().Set("X-Accel-Buffering", "no")
 
 	sseHandler := stream.NewSSEHandler(req.Model, req.StopSequences, req.Thinking != nil && req.Thinking.Enabled)
-	if err := sseHandler.StreamToClient(streamResp, w); err != nil {
+	if err := sseHandler.StreamToClient(loggedStream, w); err != nil {
 		logger.Warnf("Stream error: req_id=%s model=%s error=%v", reqID, req.Model, err)
 		return
 	}

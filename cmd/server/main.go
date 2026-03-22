@@ -39,7 +39,10 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	if err := logger.Init(cfg.Log.Level); err != nil {
+	if err := logger.Init(logger.Config{
+		Level:  cfg.Log.Level,
+		Format: cfg.Log.Format,
+	}); err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 

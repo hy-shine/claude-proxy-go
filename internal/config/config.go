@@ -27,7 +27,8 @@ type ServerConfig struct {
 }
 
 type LogConfig struct {
-	Level string `json:"level"`
+	Level  string `json:"level"`
+	Format string `json:"format,omitempty"` // "text" (default) or "json"
 }
 
 type ProviderConfig struct {
@@ -135,6 +136,9 @@ func (c *Config) ApplyDefaults() {
 	if normalizeAPIType(c.Log.Level) == "" {
 		c.Log.Level = "info"
 	}
+	if c.Log.Format == "" {
+		c.Log.Format = "text"
+	}
 }
 
 func (c *Config) Validate() error {
@@ -149,6 +153,11 @@ func (c *Config) Validate() error {
 	case "debug", "info", "warn", "warning", "error":
 	default:
 		return fmt.Errorf("unsupported log.level: %s", c.Log.Level)
+	}
+	switch normalizeAPIType(c.Log.Format) {
+	case "", "text", "json":
+	default:
+		return fmt.Errorf("unsupported log.format: %s", c.Log.Format)
 	}
 
 	validAPITypes := map[string]bool{

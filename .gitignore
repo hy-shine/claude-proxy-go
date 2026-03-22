@@ -23,6 +23,9 @@ go.work.sum
 # Vendor (if used)
 vendor/
 
+# Docs
+docs/specs
+
 # IDE
 .idea/
 .vscode/

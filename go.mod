@@ -7,6 +7,7 @@ toolchain go1.24.2
 require (
 	github.com/cloudwego/eino v0.8.2
 	github.com/cloudwego/eino-ext/components/model/openai v0.1.9
+	go.uber.org/zap v1.27.1
 )
 
 require (
@@ -38,6 +39,7 @@ require (
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/wk8/go-ordered-map/v2 v2.1.8 // indirect
 	github.com/yargevad/filepathx v1.0.0 // indirect
+	go.uber.org/multierr v1.10.0 // indirect
 	golang.org/x/arch v0.12.0 // indirect
 	golang.org/x/crypto v0.39.0 // indirect
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1 // indirect

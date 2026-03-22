@@ -1,0 +1,113 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    name: Run tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Run tests
+        run: go test -v ./...
+
+  build:
+    name: Build binaries
+    needs: test
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+          - goos: linux
+            goarch: arm64
+          - goos: darwin
+            goarch: amd64
+          - goos: darwin
+            goarch: arm64
+          - goos: windows
+            goarch: amd64
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Get version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          COMMIT=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          BINARY=claude-proxy-go
+          [ "$GOOS" = "windows" ] && BINARY="${BINARY}.exe"
+
+          LDFLAGS="-s -w \
+            -X github.com/hy-shine/claude-proxy-go/internal/version.Version=${VERSION} \
+            -X github.com/hy-shine/claude-proxy-go/internal/version.Commit=${COMMIT} \
+            -X github.com/hy-shine/claude-proxy-go/internal/version.BuildTime=${BUILD_TIME}"
+
+          go build -ldflags="${LDFLAGS}" -trimpath -o dist/${BINARY} ./cmd/server
+
+      - name: Create archive (Unix)
+        if: matrix.goos != 'windows'
+        run: |
+          cd dist
+          ARCHIVE=claude-proxy-go-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          tar -czvf ${ARCHIVE}.tar.gz claude-proxy-go
+          shasum -a 256 ${ARCHIVE}.tar.gz > ${ARCHIVE}.tar.gz.sha256
+
+      - name: Create archive (Windows)
+        if: matrix.goos == 'windows'
+        run: |
+          cd dist
+          ARCHIVE=claude-proxy-go-${{ steps.version.outputs.VERSION }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          zip ${ARCHIVE}.zip claude-proxy-go.exe
+          shasum -a 256 ${ARCHIVE}.zip > ${ARCHIVE}.zip.sha256
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: claude-proxy-go-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/*
+
+  release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
