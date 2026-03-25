@@ -66,6 +66,10 @@ func (h *Handler) HandleMessages(w http.ResponseWriter, r *http.Request) {
 
 	logger.Infof("Request accepted: req_id=%s model=%s stream=%v remote=%s", reqID, req.Model, req.Stream != nil && *req.Stream, r.RemoteAddr)
 
+	if req.Thinking != nil {
+		logger.Infof("Thinking config: req_id=%s type=%s enabled=%v budget_tokens=%d effort=%s", reqID, req.Thinking.Type, req.Thinking.Enabled, req.Thinking.BudgetTokens, req.Thinking.Effort)
+	}
+
 	// Log Anthropic request (masked)
 	logger.Debugw("Anthropic request",
 		"req_id", reqID,
@@ -87,7 +91,7 @@ func (h *Handler) HandleMessages(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, req *types.MessagesRequest, reqID string) {
 	messages, opts, err := converter.ToEinoRequest(req)
 	if err != nil {
-		logger.Infof("Request conversion failed: req_id=%s model=%s stream=false error=%v", reqID, req.Model, err)
+		logger.Errorf("Request conversion failed: req_id=%s model=%s stream=false error=%v", reqID, req.Model, err)
 		h.sendError(w, http.StatusBadRequest, "Unsupported request: "+err.Error())
 		return
 	}
@@ -163,7 +167,7 @@ func (h *Handler) handleNonStream(w http.ResponseWriter, r *http.Request, req *t
 func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, req *types.MessagesRequest, reqID string) {
 	messages, opts, err := converter.ToEinoRequest(req)
 	if err != nil {
-		logger.Infof("Request conversion failed: req_id=%s model=%s stream=true error=%v", reqID, req.Model, err)
+		logger.Errorf("Request conversion failed: req_id=%s model=%s stream=true error=%v", reqID, req.Model, err)
 		h.sendError(w, http.StatusBadRequest, "Unsupported request: "+err.Error())
 		return
 	}
@@ -195,7 +199,8 @@ func (h *Handler) handleStream(w http.ResponseWriter, r *http.Request, req *type
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	sseHandler := stream.NewSSEHandler(req.Model, req.StopSequences, req.Thinking != nil && req.Thinking.Enabled)
+	thinkingEnabled := req.Thinking != nil && (req.Thinking.Enabled || req.Thinking.Type == "adaptive")
+	sseHandler := stream.NewSSEHandler(req.Model, req.StopSequences, thinkingEnabled)
 	if err := sseHandler.StreamToClient(loggedStream, w); err != nil {
 		logger.Warnf("Stream error: req_id=%s model=%s error=%v", reqID, req.Model, err)
 		return

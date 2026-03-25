@@ -74,6 +74,26 @@ func TestToEinoRequestAcceptsThinkingTypeDisabled(t *testing.T) {
 	}
 }
 
+func TestToEinoRequestAcceptsThinkingTypeAdaptive(t *testing.T) {
+	req := &types.MessagesRequest{
+		Model:     "m1",
+		MaxTokens: 32,
+		Messages:  []types.Message{{Role: "user", Content: "hello"}},
+		Thinking:  &types.ThinkingConfig{Type: "adaptive"},
+	}
+
+	_, opts, err := ToEinoRequest(req)
+	if err != nil {
+		t.Fatalf("ToEinoRequest() error = %v", err)
+	}
+	if opts.Thinking == nil {
+		t.Fatalf("Thinking mismatch: %#v", opts.Thinking)
+	}
+	if opts.Thinking.Type != "adaptive" {
+		t.Fatalf("expected thinking type=adaptive, got %#v", opts.Thinking)
+	}
+}
+
 func TestToEinoRequestRejectsInvalidThinkingAndTopK(t *testing.T) {
 	negTopK := -1
 
@@ -98,9 +118,9 @@ func TestToEinoRequestRejectsInvalidThinkingAndTopK(t *testing.T) {
 				Model:     "m1",
 				MaxTokens: 32,
 				Messages:  []types.Message{{Role: "user", Content: "hello"}},
-				Thinking:  &types.ThinkingConfig{Enabled: true, BudgetTokens: 0},
+				Thinking:  &types.ThinkingConfig{Type: "enabled", BudgetTokens: 0},
 			},
-			want: "thinking.budget_tokens must be > 0",
+			want: "thinking.budget_tokens must be > 0 when thinking.type is enabled",
 		},
 		{
 			name: "invalid thinking type",
@@ -108,9 +128,9 @@ func TestToEinoRequestRejectsInvalidThinkingAndTopK(t *testing.T) {
 				Model:     "m1",
 				MaxTokens: 32,
 				Messages:  []types.Message{{Role: "user", Content: "hello"}},
-				Thinking:  &types.ThinkingConfig{Type: "auto", BudgetTokens: 512},
+				Thinking:  &types.ThinkingConfig{Type: "invalid", BudgetTokens: 512},
 			},
-			want: "thinking.type must be enabled or disabled",
+			want: "thinking.type must be enabled, disabled, or adaptive",
 		},
 		{
 			name: "thinking enabled conflicts with disabled type",

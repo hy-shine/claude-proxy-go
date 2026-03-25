@@ -51,7 +51,7 @@ func Init(cfg Config) error {
 	core := zapcore.NewCore(
 		encoder,
 		zapcore.AddSync(os.Stdout),
-		zapcore.Level(parsedLevel),
+		toZapLevel(parsedLevel),
 	)
 
 	globalLogger = zap.New(core, zap.AddCaller()).Sugar()
@@ -83,6 +83,22 @@ type unsupportedLevelError struct {
 
 func (e *unsupportedLevelError) Error() string {
 	return "unsupported log level: " + e.level
+}
+
+// toZapLevel 将自定义 Level 转换为 zapcore.Level
+func toZapLevel(l Level) zapcore.Level {
+	switch l {
+	case LevelDebug:
+		return zapcore.DebugLevel
+	case LevelInfo:
+		return zapcore.InfoLevel
+	case LevelWarn:
+		return zapcore.WarnLevel
+	case LevelError:
+		return zapcore.ErrorLevel
+	default:
+		return zapcore.InfoLevel
+	}
 }
 
 func Debugf(format string, args ...any) {

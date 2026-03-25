@@ -38,8 +38,8 @@ func ToEinoRequest(req *types.MessagesRequest) ([]*schema.Message, *ChatOptions,
 		if thinkingCfg.BudgetTokens < 0 {
 			return nil, nil, fmt.Errorf("thinking.budget_tokens must be >= 0")
 		}
-		if thinkingCfg.Enabled && thinkingCfg.BudgetTokens <= 0 {
-			return nil, nil, fmt.Errorf("thinking.budget_tokens must be > 0 when thinking.enabled is true")
+		if thinkingCfg.Type == "enabled" && thinkingCfg.BudgetTokens <= 0 {
+			return nil, nil, fmt.Errorf("thinking.budget_tokens must be > 0 when thinking.type is enabled")
 		}
 	}
 
@@ -557,19 +557,28 @@ func normalizeThinking(thinking *types.ThinkingConfig) (*types.ThinkingConfig, e
 	out := *thinking
 	out.Type = strings.ToLower(strings.TrimSpace(out.Type))
 	switch out.Type {
-	case "", "enabled", "disabled":
+	case "", "enabled", "disabled", "adaptive":
 	default:
-		return nil, fmt.Errorf("thinking.type must be enabled or disabled")
+		return nil, fmt.Errorf("thinking.type must be enabled, disabled, or adaptive, but got %s", out.Type)
+	}
+
+	if out.Effort != "" {
+		out.Effort = strings.ToLower(strings.TrimSpace(out.Effort))
+		switch out.Effort {
+		case "", "low", "medium", "high", "max":
+		default:
+			return nil, fmt.Errorf("thinking.effort must be low, medium, high, or max, but got %s", out.Effort)
+		}
 	}
 
 	if out.Enabled && out.Type == "disabled" {
 		return nil, fmt.Errorf("thinking.enabled conflicts with thinking.type=disabled")
 	}
 
-	if out.Type == "enabled" {
+	switch out.Type {
+	case "enabled":
 		out.Enabled = true
-	}
-	if out.Type == "disabled" {
+	case "disabled":
 		out.Enabled = false
 	}
 

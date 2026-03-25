@@ -212,10 +212,34 @@ func convertOptions(opts *converter.ChatOptions) ([]model.Option, error) {
 		chatOpts = append(chatOpts, model.WithToolChoice(*opts.ToolChoice, opts.AllowedToolNames...))
 	}
 
-	if opts.Thinking != nil && opts.Thinking.Enabled {
-		chatOpts = append(chatOpts, openai.WithReasoningEffort(mapThinkingBudgetToOpenAIEffort(opts.Thinking.BudgetTokens)))
+	if opts.Thinking != nil {
+		switch opts.Thinking.Type {
+		case "enabled":
+			chatOpts = append(chatOpts, openai.WithReasoningEffort(mapThinkingBudgetToOpenAIEffort(opts.Thinking.BudgetTokens)))
+		case "adaptive":
+			effort := opts.Thinking.Effort
+			if effort == "" {
+				effort = "high"
+			}
+			chatOpts = append(chatOpts, openai.WithReasoningEffort(mapEffortToOpenAI(effort)))
+		}
 	}
 	return chatOpts, nil
+}
+
+func mapEffortToOpenAI(effort string) openai.ReasoningEffortLevel {
+	switch effort {
+	case "low":
+		return openai.ReasoningEffortLevelLow
+	case "medium":
+		return openai.ReasoningEffortLevelMedium
+	case "high":
+		return openai.ReasoningEffortLevelHigh
+	case "max":
+		return openai.ReasoningEffortLevelHigh
+	default:
+		return openai.ReasoningEffortLevelMedium
+	}
 }
 
 func mapTopKToTopP(topK int) float32 {

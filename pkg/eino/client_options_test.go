@@ -76,7 +76,19 @@ func TestConvertOptionsIgnoresTopKWhenTopPProvided(t *testing.T) {
 
 func TestConvertOptionsSupportsThinkingForOpenAI(t *testing.T) {
 	got, err := convertOptions(&converter.ChatOptions{
-		Thinking: &types.ThinkingConfig{Enabled: true, BudgetTokens: 1024},
+		Thinking: &types.ThinkingConfig{Type: "enabled", BudgetTokens: 1024},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("options length = %d, want 1", len(got))
+	}
+}
+
+func TestConvertOptionsSupportsAdaptiveEffort(t *testing.T) {
+	got, err := convertOptions(&converter.ChatOptions{
+		Thinking: &types.ThinkingConfig{Type: "adaptive", Effort: "high"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

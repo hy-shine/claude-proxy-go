@@ -29,6 +29,7 @@ type ThinkingConfig struct {
 	Type         string `json:"type,omitempty"`
 	Enabled      bool   `json:"enabled"`
 	BudgetTokens int    `json:"budget_tokens"`
+	Effort       string `json:"effort,omitempty"`
 }
 
 type Message struct {
