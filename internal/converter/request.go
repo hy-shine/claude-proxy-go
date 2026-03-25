@@ -17,6 +17,7 @@ type ChatOptions struct {
 	TopP             *float64
 	TopK             *int
 	Thinking         *types.ThinkingConfig
+	OutputConfig     *types.OutputConfig
 	Stop             []string
 	Tools            []*schema.ToolInfo
 	ToolChoice       *schema.ToolChoice
@@ -43,6 +44,11 @@ func ToEinoRequest(req *types.MessagesRequest) ([]*schema.Message, *ChatOptions,
 		}
 	}
 
+	outputCfg, err := normalizeOutputConfig(req.OutputConfig)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	fallbackToolName := ""
 	if len(req.Tools) == 1 {
 		fallbackToolName = req.Tools[0].Name
@@ -54,12 +60,13 @@ func ToEinoRequest(req *types.MessagesRequest) ([]*schema.Message, *ChatOptions,
 	}
 
 	opts := &ChatOptions{
-		Temperature: req.Temperature,
-		MaxTokens:   intPtr(req.MaxTokens),
-		TopP:        req.TopP,
-		TopK:        req.TopK,
-		Thinking:    thinkingCfg,
-		Stop:        req.StopSequences,
+		Temperature:  req.Temperature,
+		MaxTokens:    intPtr(req.MaxTokens),
+		TopP:         req.TopP,
+		TopK:         req.TopK,
+		Thinking:     thinkingCfg,
+		OutputConfig: outputCfg,
+		Stop:         req.StopSequences,
 	}
 
 	if len(req.Tools) > 0 {
@@ -562,12 +569,12 @@ func normalizeThinking(thinking *types.ThinkingConfig) (*types.ThinkingConfig, e
 		return nil, fmt.Errorf("thinking.type must be enabled, disabled, or adaptive, but got %s", out.Type)
 	}
 
-	if out.Effort != "" {
-		out.Effort = strings.ToLower(strings.TrimSpace(out.Effort))
-		switch out.Effort {
-		case "", "low", "medium", "high", "max":
+	if out.Display != "" {
+		out.Display = strings.ToLower(strings.TrimSpace(out.Display))
+		switch out.Display {
+		case "", "summarized", "omitted":
 		default:
-			return nil, fmt.Errorf("thinking.effort must be low, medium, high, or max, but got %s", out.Effort)
+			return nil, fmt.Errorf("thinking.display must be summarized or omitted, but got %s", out.Display)
 		}
 	}
 
@@ -580,6 +587,24 @@ func normalizeThinking(thinking *types.ThinkingConfig) (*types.ThinkingConfig, e
 		out.Enabled = true
 	case "disabled":
 		out.Enabled = false
+	}
+
+	return &out, nil
+}
+
+func normalizeOutputConfig(cfg *types.OutputConfig) (*types.OutputConfig, error) {
+	if cfg == nil {
+		return nil, nil
+	}
+
+	out := *cfg
+	if out.Effort != "" {
+		out.Effort = strings.ToLower(strings.TrimSpace(out.Effort))
+		switch out.Effort {
+		case "", "low", "medium", "high", "max":
+		default:
+			return nil, fmt.Errorf("output_config.effort must be low, medium, high, or max, but got %s", out.Effort)
+		}
 	}
 
 	return &out, nil

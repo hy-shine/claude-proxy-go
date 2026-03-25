@@ -88,7 +88,20 @@ func TestConvertOptionsSupportsThinkingForOpenAI(t *testing.T) {
 
 func TestConvertOptionsSupportsAdaptiveEffort(t *testing.T) {
 	got, err := convertOptions(&converter.ChatOptions{
-		Thinking: &types.ThinkingConfig{Type: "adaptive", Effort: "high"},
+		Thinking:     &types.ThinkingConfig{Type: "adaptive"},
+		OutputConfig: &types.OutputConfig{Effort: "high"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("options length = %d, want 1", len(got))
+	}
+}
+
+func TestConvertOptionsAdaptiveDefaultEffort(t *testing.T) {
+	got, err := convertOptions(&converter.ChatOptions{
+		Thinking: &types.ThinkingConfig{Type: "adaptive"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

@@ -217,9 +217,9 @@ func convertOptions(opts *converter.ChatOptions) ([]model.Option, error) {
 		case "enabled":
 			chatOpts = append(chatOpts, openai.WithReasoningEffort(mapThinkingBudgetToOpenAIEffort(opts.Thinking.BudgetTokens)))
 		case "adaptive":
-			effort := opts.Thinking.Effort
-			if effort == "" {
-				effort = "high"
+			effort := "high"
+			if opts.OutputConfig != nil && opts.OutputConfig.Effort != "" {
+				effort = opts.OutputConfig.Effort
 			}
 			chatOpts = append(chatOpts, openai.WithReasoningEffort(mapEffortToOpenAI(effort)))
 		}

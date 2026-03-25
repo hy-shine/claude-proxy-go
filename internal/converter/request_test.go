@@ -76,10 +76,11 @@ func TestToEinoRequestAcceptsThinkingTypeDisabled(t *testing.T) {
 
 func TestToEinoRequestAcceptsThinkingTypeAdaptive(t *testing.T) {
 	req := &types.MessagesRequest{
-		Model:     "m1",
-		MaxTokens: 32,
-		Messages:  []types.Message{{Role: "user", Content: "hello"}},
-		Thinking:  &types.ThinkingConfig{Type: "adaptive"},
+		Model:        "m1",
+		MaxTokens:    32,
+		Messages:     []types.Message{{Role: "user", Content: "hello"}},
+		Thinking:     &types.ThinkingConfig{Type: "adaptive"},
+		OutputConfig: &types.OutputConfig{Effort: "medium"},
 	}
 
 	_, opts, err := ToEinoRequest(req)
@@ -91,6 +92,26 @@ func TestToEinoRequestAcceptsThinkingTypeAdaptive(t *testing.T) {
 	}
 	if opts.Thinking.Type != "adaptive" {
 		t.Fatalf("expected thinking type=adaptive, got %#v", opts.Thinking)
+	}
+	if opts.OutputConfig == nil || opts.OutputConfig.Effort != "medium" {
+		t.Fatalf("expected output_config.effort=medium, got %#v", opts.OutputConfig)
+	}
+}
+
+func TestToEinoRequestAcceptsThinkingDisplay(t *testing.T) {
+	req := &types.MessagesRequest{
+		Model:     "m1",
+		MaxTokens: 32,
+		Messages:  []types.Message{{Role: "user", Content: "hello"}},
+		Thinking:  &types.ThinkingConfig{Type: "adaptive", Display: "omitted"},
+	}
+
+	_, opts, err := ToEinoRequest(req)
+	if err != nil {
+		t.Fatalf("ToEinoRequest() error = %v", err)
+	}
+	if opts.Thinking == nil || opts.Thinking.Display != "omitted" {
+		t.Fatalf("expected thinking.display=omitted, got %#v", opts.Thinking)
 	}
 }
 

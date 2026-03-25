@@ -67,7 +67,10 @@ func (h *Handler) HandleMessages(w http.ResponseWriter, r *http.Request) {
 	logger.Infof("Request accepted: req_id=%s model=%s stream=%v remote=%s", reqID, req.Model, req.Stream != nil && *req.Stream, r.RemoteAddr)
 
 	if req.Thinking != nil {
-		logger.Infof("Thinking config: req_id=%s type=%s enabled=%v budget_tokens=%d effort=%s", reqID, req.Thinking.Type, req.Thinking.Enabled, req.Thinking.BudgetTokens, req.Thinking.Effort)
+		logger.Infof("Thinking config: req_id=%s type=%s enabled=%v budget_tokens=%d display=%s", reqID, req.Thinking.Type, req.Thinking.Enabled, req.Thinking.BudgetTokens, req.Thinking.Display)
+	}
+	if req.OutputConfig != nil {
+		logger.Infof("Output config: req_id=%s effort=%s", reqID, req.OutputConfig.Effort)
 	}
 
 	// Log Anthropic request (masked)

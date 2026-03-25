@@ -21,6 +21,7 @@ type MessagesRequest struct {
 	Tools         []Tool          `json:"tools,omitempty"`
 	ToolChoice    *ToolChoice     `json:"tool_choice,omitempty"`
 	Thinking      *ThinkingConfig `json:"thinking,omitempty"`
+	OutputConfig  *OutputConfig   `json:"output_config,omitempty"`
 
 	OriginalModel string `json:"-"`
 }
@@ -29,7 +30,11 @@ type ThinkingConfig struct {
 	Type         string `json:"type,omitempty"`
 	Enabled      bool   `json:"enabled"`
 	BudgetTokens int    `json:"budget_tokens"`
-	Effort       string `json:"effort,omitempty"`
+	Display      string `json:"display,omitempty"`
+}
+
+type OutputConfig struct {
+	Effort string `json:"effort,omitempty"`
 }
 
 type Message struct {
