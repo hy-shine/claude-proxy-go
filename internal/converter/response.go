@@ -41,8 +41,9 @@ func FromEinoResponse(resp *schema.Message, originalModel string, requestedStopS
 		StopReason:   stopReason,
 		StopSequence: stopSequence,
 		Usage: types.Usage{
-			InputTokens:  getUsage(resp, "input"),
-			OutputTokens: getUsage(resp, "output"),
+			InputTokens:    getUsage(resp, "input"),
+			OutputTokens:   getUsage(resp, "output"),
+			ThinkingTokens: getUsage(resp, "thinking"),
 		},
 	}
 }
@@ -114,6 +115,8 @@ func getUsage(resp *schema.Message, direction string) int {
 		return usage.PromptTokens
 	case "output":
 		return usage.CompletionTokens
+	case "thinking":
+		return usage.CompletionTokensDetails.ReasoningTokens
 	default:
 		return 0
 	}

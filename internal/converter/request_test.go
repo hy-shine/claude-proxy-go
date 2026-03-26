@@ -652,7 +652,7 @@ func TestToEinoRequestInfersAssistantToolUseNameFromSingleConfiguredTool(t *test
 	}
 }
 
-func TestToEinoRequestSkipsThinkingBlocksInAssistantHistory(t *testing.T) {
+func TestToEinoRequestConvertsThinkingBlocksInAssistantHistory(t *testing.T) {
 	req := &types.MessagesRequest{
 		Model:     "m1",
 		MaxTokens: 100,
@@ -683,19 +683,26 @@ func TestToEinoRequestSkipsThinkingBlocksInAssistantHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ToEinoRequest() error = %v", err)
 	}
-	// Should have: user, assistant (thinking skipped), user
+	// Thinking blocks are now converted to text to preserve reasoning context
 	if len(msgs) != 3 {
 		t.Fatalf("expected 3 messages, got %d: %#v", len(msgs), msgs)
 	}
 	if msgs[1].Role != schema.Assistant {
 		t.Fatalf("msg[1] role = %q, want assistant", msgs[1].Role)
 	}
-	if msgs[1].Content != "4" {
-		t.Fatalf("msg[1] content = %q, want %q", msgs[1].Content, "4")
+	// Thinking blocks are now converted to text to preserve reasoning context
+	if len(msgs) != 3 {
+		t.Fatalf("expected 3 messages, got %d: %#v", len(msgs), msgs)
+	}
+	if msgs[1].Role != schema.Assistant {
+		t.Fatalf("msg[1] role = %q, want assistant", msgs[1].Role)
+	}
+	if msgs[1].Content != "Let me calculate...\n4" {
+		t.Fatalf("msg[1] content = %q, want %q", msgs[1].Content, "Let me calculate...\n4")
 	}
 }
 
-func TestToEinoRequestSkipsRedactedThinkingBlocks(t *testing.T) {
+func TestToEinoRequestConvertsRedactedThinkingBlocks(t *testing.T) {
 	req := &types.MessagesRequest{
 		Model:     "m1",
 		MaxTokens: 100,
@@ -717,8 +724,8 @@ func TestToEinoRequestSkipsRedactedThinkingBlocks(t *testing.T) {
 	if len(msgs) != 1 {
 		t.Fatalf("expected 1 message, got %d", len(msgs))
 	}
-	if msgs[0].Content != "Here is my answer." {
-		t.Fatalf("content = %q, want %q", msgs[0].Content, "Here is my answer.")
+	if msgs[0].Content != "encrypted...\nHere is my answer." {
+		t.Fatalf("content = %q, want %q", msgs[0].Content, "encrypted...\nHere is my answer.")
 	}
 }
 

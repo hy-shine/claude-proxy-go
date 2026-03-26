@@ -265,8 +265,18 @@ func convertAssistantBlocks(blocks []any, fallbackToolName string) ([]*schema.Me
 				},
 			})
 		case "thinking", "redacted_thinking":
-			// Skip thinking blocks — OpenAI compatible providers do not accept them.
-			// The reasoning content will be reconstructed by the upstream model if needed.
+			// Convert thinking blocks to text so reasoning context is preserved
+			// for multi-turn conversations with OpenAI-compatible providers.
+			var thinking string
+			if blockType == "thinking" {
+				thinking, _ = block["thinking"].(string)
+			} else {
+				thinking, _ = block["data"].(string)
+			}
+			if thinking != "" {
+				sb.WriteString(thinking)
+				sb.WriteString("\n")
+			}
 		default:
 			return nil, fmt.Errorf("unsupported content block type: %s", blockType)
 		}

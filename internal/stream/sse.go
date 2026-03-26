@@ -48,6 +48,7 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 	messageID := generateMessageID()
 	inputTokens := 0
 	outputTokens := 0
+	thinkingTokens := 0
 	toolUsed := false
 	finishReason := ""
 	thinkingBlockOpen := false
@@ -175,6 +176,9 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 			}
 			if chunk.ResponseMeta.Usage.CompletionTokens > 0 {
 				outputTokens = chunk.ResponseMeta.Usage.CompletionTokens
+			}
+			if chunk.ResponseMeta.Usage.CompletionTokensDetails.ReasoningTokens > 0 {
+				thinkingTokens = chunk.ResponseMeta.Usage.CompletionTokensDetails.ReasoningTokens
 			}
 		}
 		if chunk.ResponseMeta != nil && chunk.ResponseMeta.FinishReason != "" {
@@ -332,8 +336,9 @@ func (h *SSEHandler) StreamToClient(stream MessageStream, w http.ResponseWriter)
 			"stop_sequence": stopSequenceValue,
 		},
 		"usage": map[string]int{
-			"input_tokens":  inputTokens,
-			"output_tokens": outputTokens,
+			"input_tokens":    inputTokens,
+			"output_tokens":   outputTokens,
+			"thinking_tokens": thinkingTokens,
 		},
 	}); err != nil {
 		return err

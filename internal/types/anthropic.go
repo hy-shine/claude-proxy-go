@@ -82,6 +82,7 @@ type Usage struct {
 	OutputTokens             int `json:"output_tokens"`
 	CacheCreationInputTokens int `json:"cache_creation_input_tokens,omitempty"`
 	CacheReadInputTokens     int `json:"cache_read_input_tokens,omitempty"`
+	ThinkingTokens           int `json:"thinking_tokens,omitempty"`
 }
 
 type MessagesResponse struct {
