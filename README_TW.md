@@ -9,12 +9,12 @@
 
 ## 概述
 
-Claude Proxy Go 是一個高效能 API 代理，將 **Anthropic 相容** 的 `/v1/messages` 請求轉換為 **OpenAI 相容** 的 provider 呼叫。它允許您透過 Anthropic API 介面使用 OpenAI 相容的模型（OpenAI、NVIDIA、OpenRouter 等）。
+Claude Proxy Go 是一個高效能 API 代理，將 **Anthropic 相容** 的 `/v1/messages` 請求轉換為 **OpenAI 相容** 的 provider 呼叫。它允許您透過 Anthropic API 介面使用 OpenAI 相容的模型（OpenAI、Ollama、OpenRouter 等）。
 
 ## 功能特性
 
 - **協定轉換**：Anthropic 和 OpenAI API 格式之間的無縫轉換
-- **多 Provider 支援**：支援任何 OpenAI 相容的 provider（OpenAI、NVIDIA、OpenRouter 等）
+- **多 Provider 支援**：支援任何 OpenAI 相容的 provider（OpenAI、Ollama、OpenRouter 等）
 - **串流支援**：完整的 Server-Sent Events (SSE) 串流傳輸，採用 Anthropic 事件序列
 - **工具呼叫**：支援工具定義、tool_choice (auto/any/tool) 和工具結果處理
 - **進階參數映射**：
@@ -45,7 +45,7 @@ Claude Proxy Go 是一個高效能 API 代理，將 **Anthropic 相容** 的 `/v
                             ▼
             ┌─────────────────────────┐
             │    Upstream Provider    │
-            │   (OpenAI/NVIDIA/       │
+            │   (OpenAI/Ollama/       │
             │   OpenRouter/etc.)      │
             └─────────────────────────┘
 ```

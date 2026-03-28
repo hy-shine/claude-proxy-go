@@ -9,12 +9,12 @@
 
 ## Overview
 
-Claude Proxy Go is a high-performance API proxy that translates **Anthropic-compatible** `/v1/messages` requests into **OpenAI-compatible** provider calls. It enables you to use OpenAI-compatible models (OpenAI, NVIDIA, OpenRouter, etc.) through the Anthropic API interface.
+Claude Proxy Go is a high-performance API proxy that translates **Anthropic-compatible** `/v1/messages` requests into **OpenAI-compatible** provider calls. It enables you to use OpenAI-compatible models (OpenAI, Ollama, OpenRouter, etc.) through the Anthropic API interface.
 
 ## Features
 
 - **Protocol Translation**: Seamless conversion between Anthropic and OpenAI API formats
-- **Multi-Provider Support**: Works with any OpenAI-compatible provider (OpenAI, NVIDIA, OpenRouter, etc.)
+- **Multi-Provider Support**: Works with any OpenAI-compatible provider (OpenAI, Ollama, OpenRouter, etc.)
 - **Streaming Support**: Full Server-Sent Events (SSE) streaming with Anthropic event sequence
 - **Tool Calling**: Support for tool definitions, tool_choice (auto/any/tool), and tool result handling
 - **Advanced Parameter Mapping**:
@@ -45,7 +45,7 @@ Claude Proxy Go is a high-performance API proxy that translates **Anthropic-comp
                             ▼
             ┌─────────────────────────┐
             │    Upstream Provider    │
-            │   (OpenAI/NVIDIA/       │
+            │   (OpenAI/Ollama/       │
             │   OpenRouter/etc.)      │
             └─────────────────────────┘
 ```
