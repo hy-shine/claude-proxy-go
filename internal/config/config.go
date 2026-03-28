@@ -32,11 +32,12 @@ type LogConfig struct {
 }
 
 type ProviderConfig struct {
-	APIType string                 `json:"apiType,omitempty"`
-	APIKey  string                 `json:"apiKey"`
-	BaseURL string                 `json:"baseUrl"`
-	Proxy   string                 `json:"proxy,omitempty"`
-	Models  map[string]ModelConfig `json:"models"`
+	APIType       string                 `json:"apiType,omitempty"`
+	APIKey        string                 `json:"apiKey"`
+	BaseURL       string                 `json:"baseUrl"`
+	Proxy         string                 `json:"proxy,omitempty"`
+	CustomHeaders map[string]string      `json:"customHeaders,omitempty"`
+	Models        map[string]ModelConfig `json:"models"`
 }
 
 type ModelConfig struct {
@@ -57,14 +58,15 @@ type TimeoutConfig struct {
 }
 
 type ResolvedModel struct {
-	ModelID   string
-	Provider  string
-	APIType   string
-	Name      string
-	APIKey    string
-	BaseURL   string
-	Proxy     string
-	MaxTokens int
+	ModelID       string
+	Provider      string
+	APIType       string
+	Name          string
+	APIKey        string
+	BaseURL       string
+	Proxy         string
+	MaxTokens     int
+	CustomHeaders map[string]string
 }
 
 func Load(path string) (*Config, error) {
@@ -203,14 +205,15 @@ func (c *Config) Validate() error {
 			if modelCfg.isEnabled() {
 				enabledCount++
 				modelIndex[modelID] = ResolvedModel{
-					ModelID:   modelID,
-					Provider:  providerID,
-					APIType:   apiType,
-					Name:      modelCfg.Name,
-					APIKey:    provider.APIKey,
-					BaseURL:   provider.BaseURL,
-					Proxy:     provider.Proxy,
-					MaxTokens: modelCfg.MaxTokens,
+					ModelID:       modelID,
+					Provider:      providerID,
+					APIType:       apiType,
+					Name:          modelCfg.Name,
+					APIKey:        provider.APIKey,
+					BaseURL:       provider.BaseURL,
+					Proxy:         provider.Proxy,
+					MaxTokens:     modelCfg.MaxTokens,
+					CustomHeaders: provider.CustomHeaders,
 				}
 			}
 		}

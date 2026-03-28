@@ -155,9 +155,9 @@ func TestMapTopKToTopP(t *testing.T) {
 }
 
 func TestBuildHTTPClientWithProxySupportsHTTP(t *testing.T) {
-	client, err := buildHTTPClientWithProxy("http://127.0.0.1:8080")
+	client, err := buildHTTPClient("http://127.0.0.1:8080", nil)
 	if err != nil {
-		t.Fatalf("buildHTTPClientWithProxy() error = %v", err)
+		t.Fatalf("buildHTTPClient() error = %v", err)
 	}
 	if client == nil {
 		t.Fatal("expected client, got nil")
@@ -176,9 +176,9 @@ func TestBuildHTTPClientWithProxySupportsHTTP(t *testing.T) {
 }
 
 func TestBuildHTTPClientWithProxySupportsSocksAlias(t *testing.T) {
-	client, err := buildHTTPClientWithProxy("socks://127.0.0.1:1080")
+	client, err := buildHTTPClient("socks://127.0.0.1:1080", nil)
 	if err != nil {
-		t.Fatalf("buildHTTPClientWithProxy() error = %v", err)
+		t.Fatalf("buildHTTPClient() error = %v", err)
 	}
 	transport, ok := client.Transport.(*http.Transport)
 	if !ok || transport == nil {
@@ -193,10 +193,72 @@ func TestBuildHTTPClientWithProxySupportsSocksAlias(t *testing.T) {
 	}
 }
 
-func TestBuildHTTPClientWithProxyRejectsInvalidProxy(t *testing.T) {
-	_, err := buildHTTPClientWithProxy("://bad")
+func TestBuildHTTPClientRejectsInvalidProxy(t *testing.T) {
+	_, err := buildHTTPClient("://bad", nil)
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestBuildHTTPClientWithCustomHeaders(t *testing.T) {
+	headers := map[string]string{
+		"X-Custom-Header":  "test-value",
+		"X-Another-Header": "another-value",
+	}
+	client, err := buildHTTPClient("", headers)
+	if err != nil {
+		t.Fatalf("buildHTTPClient() error = %v", err)
+	}
+	if client == nil {
+		t.Fatal("expected client, got nil")
+	}
+	ht, ok := client.Transport.(*headerTransport)
+	if !ok {
+		t.Fatalf("expected headerTransport, got %T", client.Transport)
+	}
+	if len(ht.headers) != 2 {
+		t.Fatalf("expected 2 headers, got %d", len(ht.headers))
+	}
+	if ht.headers["X-Custom-Header"] != "test-value" {
+		t.Fatalf("header mismatch: %v", ht.headers["X-Custom-Header"])
+	}
+}
+
+func TestBuildHTTPClientReturnsNilWhenNoConfig(t *testing.T) {
+	client, err := buildHTTPClient("", nil)
+	if err != nil {
+		t.Fatalf("buildHTTPClient() error = %v", err)
+	}
+	if client != nil {
+		t.Fatal("expected nil client when no proxy or headers configured")
+	}
+}
+
+func TestBuildHTTPClientWithProxyAndHeaders(t *testing.T) {
+	headers := map[string]string{
+		"X-Api-Key": "secret",
+	}
+	client, err := buildHTTPClient("http://127.0.0.1:8080", headers)
+	if err != nil {
+		t.Fatalf("buildHTTPClient() error = %v", err)
+	}
+	if client == nil {
+		t.Fatal("expected client, got nil")
+	}
+	ht, ok := client.Transport.(*headerTransport)
+	if !ok {
+		t.Fatalf("expected headerTransport, got %T", client.Transport)
+	}
+	transport, ok := ht.RoundTripper.(*http.Transport)
+	if !ok {
+		t.Fatalf("expected http.Transport, got %T", ht.RoundTripper)
+	}
+	proxyURL, err := transport.Proxy(&http.Request{URL: &url.URL{Scheme: "https", Host: "example.com"}})
+	if err != nil {
+		t.Fatalf("proxy func error = %v", err)
+	}
+	if proxyURL == nil || proxyURL.String() != "http://127.0.0.1:8080" {
+		t.Fatalf("proxy mismatch: %#v", proxyURL)
 	}
 }
 

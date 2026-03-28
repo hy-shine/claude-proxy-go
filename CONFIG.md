@@ -73,6 +73,7 @@ Default location: `configs/config.json`
 | `providers.<name>.apiKey` | string | API key for the provider | required |
 | `providers.<name>.baseUrl` | string | Provider API base URL | `https://api.openai.com/v1` |
 | `providers.<name>.proxy` | string | Proxy URL for upstream API calls (http/https/socks5) | `""` |
+| `providers.<name>.customHeaders` | object | Custom HTTP headers to add to all requests | `{}` |
 | `providers.<name>.models` | object | Model configurations for this provider | required |
 
 ### Model Settings
@@ -171,3 +172,32 @@ Proxy URL formats:
 - HTTP: `http://host:port`
 - HTTPS: `https://host:port`
 - SOCKS5: `socks5://host:port`
+
+## Custom Headers
+
+You can add custom HTTP headers to all requests sent to a provider:
+
+```json
+{
+  "providers": {
+    "llama": {
+      "apiType": "openai",
+      "apiKey": "your-api-key",
+      "baseUrl": "https://your-endpoint/v1",
+      "customHeaders": {
+        "X-Api-Version": "2024-01-01",
+        "X-Request-Source": "claude-proxy"
+      },
+      "models": {
+        "my-model": { "name": "llama-3.1-8b" }
+      }
+    }
+  }
+}
+```
+
+Custom headers are useful for:
+- API version headers (e.g., `X-Api-Version`)
+- Authentication headers (e.g., `X-Api-Key` for additional auth)
+- Request tracking headers (e.g., `X-Request-Id`)
+- Custom metadata headers

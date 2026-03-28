@@ -24,6 +24,20 @@
           "maxTokens": 16384
         }
       }
+    },
+    "llama": {
+      "apiType": "openai",
+      "apiKey": "your-api-key",
+      "baseUrl": "https://your-llama-endpoint/v1",
+      "customHeaders": {
+        "X-Custom-Header": "custom-value"
+      },
+      "models": {
+        "llm_haiku": {
+          "name": "llama-3.1-8b",
+          "enabled": true
+        }
+      }
     }
   },
   "retry": {
