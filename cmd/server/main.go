@@ -59,6 +59,7 @@ func main() {
 	// Register routes
 	http.HandleFunc("/health", h.HandleHealth)
 	http.HandleFunc("/v1/messages", h.HandleMessages)
+	http.HandleFunc("/v1/messages/count_tokens", h.HandleCountTokens)
 
 	// Start server
 	addr := fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)
